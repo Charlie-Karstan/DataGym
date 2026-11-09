@@ -32,6 +32,7 @@ function loadExtension({ editor }) {
       },
     },
     Uri: { file: fsPath => ({ fsPath, toString: () => fsPath }) },
+    ViewColumn: { Two: 2 },
     Position: class { constructor(line, character) { Object.assign(this, { line, character }); } },
     Selection: class { constructor(start, end) { Object.assign(this, { start, end }); } },
     Range: class { constructor(start, end) { Object.assign(this, { start, end }); } },
@@ -67,9 +68,10 @@ test('next exercise reuses the visible solution editor', async () => {
   };
   let revealCount = 0;
   const editor = {
-    document,
-    revealRange: () => { revealCount += 1; },
-  };
+  document,
+  viewColumn: 2,
+  revealRange: () => { revealCount += 1; },
+  };;
   const extension = loadExtension({ editor });
   assert.equal(extension.commands.size, 5);
 
