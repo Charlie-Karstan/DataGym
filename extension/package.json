@@ -65,5 +65,9 @@
     "data-science",
     "quantitative-finance"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Charlie-Karstan/DataGym.git"
+  }
 }
