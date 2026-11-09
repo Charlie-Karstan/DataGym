@@ -3,7 +3,7 @@
   "displayName": "DataGym",
   "description": "Practice pandas and NumPy with live DataFrame previews in VS Code (local Python engine).",
   "version": "0.1.0",
-  "publisher": "datagym-local",
+  "publisher": "charliekarstan",
   "engines": {
     "vscode": "^1.90.0"
   },
