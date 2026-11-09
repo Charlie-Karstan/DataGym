@@ -1,0 +1,418 @@
+[
+  {
+    "id": "q-opt-liquid-mid",
+    "title": "Liquid option midquotes",
+    "category": "Options & Dispersion",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "option_chain"
+    },
+    "instructions": "Return expiry, strike, cp and midquote for options with bid > 0, ask > bid and volume >= {minvol}; sort by expiry and strike.",
+    "reference": "df.loc[df[\"bid\"].gt(0) & df[\"ask\"].gt(df[\"bid\"]) & df[\"volume\"].ge({minvol})].assign(mid=lambda x: (x[\"bid\"]+x[\"ask\"])/2)[[\"expiry\",\"strike\",\"cp\",\"mid\"]].sort_values([\"expiry\",\"strike\"])",
+    "hint": "Work inside out. Reject non-positive bids, crossed markets, and inadequate volume using elementwise comparisons.",
+    "explanation": [
+      {
+        "code": "gt/ge masks",
+        "meaning": "Reject non-positive bids, crossed markets, and inadequate volume using elementwise comparisons."
+      },
+      {
+        "code": "assign(mid=lambda x: ...)",
+        "meaning": "Calculate midquotes from surviving rows, not unrelated data."
+      },
+      {
+        "code": "column selection + sort",
+        "meaning": "Return a quote-ready table with consistent time/strike order."
+      }
+    ],
+    "parameters": {
+      "minvol": {
+        "choices": [
+          20,
+          70,
+          130
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-opt-spread-bps",
+    "title": "Option spread in basis points",
+    "category": "Options & Dispersion",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "option_chain"
+    },
+    "instructions": "Create a Series of bid-ask spread divided by midpoint, expressed in basis points, for every option row.",
+    "reference": "10000 * (df[\"ask\"] - df[\"bid\"]) / ((df[\"ask\"] + df[\"bid\"]) / 2)",
+    "hint": "Work inside out. Compute absolute spread for every quote.",
+    "explanation": [
+      {
+        "code": "ask-bid",
+        "meaning": "Compute absolute spread for every quote."
+      },
+      {
+        "code": "(ask+bid)/2",
+        "meaning": "Compute mid price, the denominator."
+      },
+      {
+        "code": "10000*spread/mid",
+        "meaning": "Convert relative spread into basis points for liquidity screening."
+      }
+    ]
+  },
+  {
+    "id": "q-opt-iv-surface",
+    "title": "Call implied-volatility surface",
+    "category": "Options & Dispersion",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "option_chain"
+    },
+    "instructions": "Return a matrix with expiry as rows, strike as columns and call IV as values, sorted by expiry and strike.",
+    "reference": "df.query(\"cp == 'C'\").pivot(index=\"expiry\", columns=\"strike\", values=\"iv\").sort_index().sort_index(axis=1)",
+    "hint": "Work inside out. Exclude put observations before reshaping.",
+    "explanation": [
+      {
+        "code": "query(cp == C)",
+        "meaning": "Exclude put observations before reshaping."
+      },
+      {
+        "code": "pivot(expiry,strike,iv)",
+        "meaning": "Create a volatility surface from long option quotes; unique expiry/strike pairs are required."
+      },
+      {
+        "code": "sort_index on both axes",
+        "meaning": "Guarantee consistent maturity and strike ordering."
+      }
+    ]
+  },
+  {
+    "id": "q-opt-atm-chain",
+    "title": "ATM volatility term structure",
+    "category": "Options & Dispersion",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "option_chain"
+    },
+    "instructions": "Return an expiry-indexed Series of ATM call IV at strike 100, sorted by expiry.",
+    "reference": "df.loc[df[\"strike\"].eq(100) & df[\"cp\"].eq(\"C\")].set_index(\"expiry\")[\"iv\"].sort_index()",
+    "hint": "Work inside out. Select ATM strike and call contracts using two Boolean Series.",
+    "explanation": [
+      {
+        "code": "eq(100) & eq(C)",
+        "meaning": "Select ATM strike and call contracts using two Boolean Series."
+      },
+      {
+        "code": "set_index(\"expiry\")",
+        "meaning": "Convert expiries to maturity labels."
+      },
+      {
+        "code": "[\"iv\"].sort_index()",
+        "meaning": "Extract the term structure as an ordered Series."
+      }
+    ]
+  },
+  {
+    "id": "q-opt-straddle-premium",
+    "title": "ATM straddle premium by expiry",
+    "category": "Options & Dispersion",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "option_chain"
+    },
+    "instructions": "Calculate call-plus-put ATM midpoint premium by expiry as a Series.",
+    "reference": "df.loc[df[\"strike\"].eq(100)].assign(mid=lambda x: (x[\"bid\"]+x[\"ask\"])/2).groupby(\"expiry\")[\"mid\"].sum()",
+    "hint": "Work inside out. Keep ATM calls and puts and exclude other strikes.",
+    "explanation": [
+      {
+        "code": "eq(100)",
+        "meaning": "Keep ATM calls and puts and exclude other strikes."
+      },
+      {
+        "code": "assign(mid)",
+        "meaning": "Calculate premium per instrument."
+      },
+      {
+        "code": "groupby(expiry).sum()",
+        "meaning": "Combine the two legs of each same-expiry straddle."
+      }
+    ]
+  },
+  {
+    "id": "q-opt-call-put-skew",
+    "title": "Put-minus-call IV skew",
+    "category": "Options & Dispersion",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "option_chain"
+    },
+    "instructions": "Return put IV minus call IV at every (expiry,strike) pair as a Series with MultiIndex.",
+    "reference": "df.pivot(index=[\"expiry\",\"strike\"], columns=\"cp\", values=\"iv\").eval(\"P - C\")",
+    "hint": "Work inside out. Align put and call observations on EXACT maturity and strike keys.",
+    "explanation": [
+      {
+        "code": "pivot(index=[expiry,strike])",
+        "meaning": "Align put and call observations on EXACT maturity and strike keys."
+      },
+      {
+        "code": "eval(\"P - C\")",
+        "meaning": "Calculate skew on aligned columns without pairing quotes by arbitrary row position."
+      }
+    ]
+  },
+  {
+    "id": "q-opt-vega-screen",
+    "title": "Vega portfolio candidate screen",
+    "category": "Options & Dispersion",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "option_chain"
+    },
+    "instructions": "Return expiry, strike, cp, iv for contracts with absolute delta < {bound}, sorted by increasing IV.",
+    "reference": "df.loc[df[\"delta\"].abs().lt({bound}), [\"expiry\",\"strike\",\"cp\",\"iv\"]].sort_values(\"iv\")",
+    "hint": "Work inside out. Select relatively delta-neutral option contracts; lt means strict less than.",
+    "explanation": [
+      {
+        "code": "abs().lt({bound})",
+        "meaning": "Select relatively delta-neutral option contracts; lt means strict less than."
+      },
+      {
+        "code": "loc",
+        "meaning": "Return only the requested quote fields."
+      },
+      {
+        "code": "sort_values",
+        "meaning": "Rank candidates by IV."
+      }
+    ],
+    "parameters": {
+      "bound": {
+        "choices": [
+          0.45,
+          0.6,
+          0.75
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-opt-volume-by-expiry",
+    "title": "Options expiry liquidity",
+    "category": "Options & Dispersion",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "option_chain"
+    },
+    "instructions": "Return total option volume by expiry, sorted highest volume first.",
+    "reference": "df.groupby(\"expiry\")[\"volume\"].sum().sort_values(ascending=False)",
+    "hint": "Work inside out. Aggregate all strikes and types sharing maturity.",
+    "explanation": [
+      {
+        "code": "groupby(expiry)",
+        "meaning": "Aggregate all strikes and types sharing maturity."
+      },
+      {
+        "code": "sum()",
+        "meaning": "Measure expiry-wide contract volume."
+      },
+      {
+        "code": "sort_values(ascending=False)",
+        "meaning": "Prioritize the most liquid expiration."
+      }
+    ]
+  },
+  {
+    "id": "q-disp-iv-gap",
+    "title": "Index versus constituent IV gap",
+    "category": "Options & Dispersion",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "dispersion"
+    },
+    "instructions": "For each date, compute index IV minus the equal-weight average constituent IV (excluding INDEX). Return a date-indexed Series.",
+    "reference": "df.query(\"symbol == 'INDEX'\").set_index(\"date\")[\"iv\"] - df.query(\"symbol != 'INDEX'\").groupby(\"date\")[\"iv\"].mean()",
+    "hint": "Work inside out. Take one index-IV quote per date.",
+    "explanation": [
+      {
+        "code": "query(index)",
+        "meaning": "Take one index-IV quote per date."
+      },
+      {
+        "code": "query(not index).groupby(date).mean()",
+        "meaning": "Average single-name IV quotes for the same dates."
+      },
+      {
+        "code": "Series subtraction",
+        "meaning": "Align by date label; this is an IV gap, NOT implied-correlation estimation."
+      }
+    ]
+  },
+  {
+    "id": "q-disp-vega-notional",
+    "title": "Constituent vega totals",
+    "category": "Options & Dispersion",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "dispersion"
+    },
+    "instructions": "Return summed constituent vega by date, excluding INDEX, as a date-indexed Series.",
+    "reference": "df.loc[df[\"symbol\"].ne(\"INDEX\")].groupby(\"date\")[\"vega\"].sum()",
+    "hint": "Work inside out. Keep all non-index option rows by label comparison.",
+    "explanation": [
+      {
+        "code": "ne(\"INDEX\")",
+        "meaning": "Keep all non-index option rows by label comparison."
+      },
+      {
+        "code": "groupby(date).sum()",
+        "meaning": "Add constituent vegas within each observation date."
+      }
+    ]
+  },
+  {
+    "id": "q-disp-weighted-iv",
+    "title": "Synthetic constituent IV proxy",
+    "category": "Options & Dispersion",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "dispersion"
+    },
+    "instructions": "For each date, calculate the weighted mean constituent IV sum(weight*iv)/sum(weight), excluding INDEX. Return a Series.",
+    "reference": "df.loc[df[\"symbol\"].ne(\"INDEX\")].assign(weighted_iv=lambda x: x[\"weight\"]*x[\"iv\"]).groupby(\"date\")[[\"weighted_iv\",\"weight\"]].sum().eval(\"weighted_iv / weight\")",
+    "hint": "Work inside out. Only component options belong in the constituent proxy.",
+    "explanation": [
+      {
+        "code": "exclude INDEX",
+        "meaning": "Only component options belong in the constituent proxy."
+      },
+      {
+        "code": "assign(weighted_iv)",
+        "meaning": "Create weight-times-IV for each constituent and date."
+      },
+      {
+        "code": "groupby(date).sum()",
+        "meaning": "Reduce numerator and denominator separately per day."
+      },
+      {
+        "code": "eval(division)",
+        "meaning": "Form a weighted arithmetic-IV proxy; it is NOT a variance-consistent synthetic index IV."
+      }
+    ]
+  },
+  {
+    "id": "q-disp-vega-delta-screen",
+    "title": "Delta-near-neutral options",
+    "category": "Options & Dispersion",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "dispersion"
+    },
+    "instructions": "Keep constituent rows with absolute delta below {delta} and vega above {vega}; return date, symbol, delta, vega.",
+    "reference": "df.loc[df[\"symbol\"].ne(\"INDEX\") & df[\"delta\"].abs().lt({delta}) & df[\"vega\"].gt({vega}), [\"date\",\"symbol\",\"delta\",\"vega\"]]",
+    "hint": "Work inside out. Exclude the index leg.",
+    "explanation": [
+      {
+        "code": "ne(index)",
+        "meaning": "Exclude the index leg."
+      },
+      {
+        "code": "abs().lt / gt",
+        "meaning": "Demand near-neutral delta and sufficiently large vega simultaneously."
+      },
+      {
+        "code": "loc",
+        "meaning": "Select qualifying rows and explicitly requested columns."
+      }
+    ],
+    "parameters": {
+      "delta": {
+        "choices": [
+          0.1,
+          0.2,
+          0.3
+        ]
+      },
+      "vega": {
+        "choices": [
+          35,
+          60,
+          90
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-disp-iv-change",
+    "title": "Daily index IV changes",
+    "category": "Options & Dispersion",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "dispersion"
+    },
+    "instructions": "Return first differences of INDEX implied volatility ordered by date.",
+    "reference": "df.query(\"symbol == 'INDEX'\").set_index(\"date\")[\"iv\"].sort_index().diff()",
+    "hint": "Work inside out. Isolate the index IV time series with date labels.",
+    "explanation": [
+      {
+        "code": "query + set_index",
+        "meaning": "Isolate the index IV time series with date labels."
+      },
+      {
+        "code": "sort_index()",
+        "meaning": "Ensure time order before differencing."
+      },
+      {
+        "code": "diff()",
+        "meaning": "Compute IV_t-IV_(t−1) in decimal-volatility units."
+      }
+    ]
+  },
+  {
+    "id": "q-option-days-to-expiry",
+    "title": "Option maturity clock",
+    "category": "Options & Dispersion",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "option_chain"
+    },
+    "instructions": "Return a Series containing number of calendar days between each expiry and 2026-11-04.",
+    "reference": "(df[\"expiry\"] - pd.Timestamp(\"2026-11-04\")).dt.days",
+    "hint": "Work inside out. Create a vector of time deltas, one per option record.",
+    "explanation": [
+      {
+        "code": "expiry - Timestamp",
+        "meaning": "Create a vector of time deltas, one per option record."
+      },
+      {
+        "code": "dt.days",
+        "meaning": "Extract integer calendar days; no year-fraction convention is implied."
+      }
+    ]
+  },
+  {
+    "id": "q-disp-relative-vega",
+    "title": "Vega share by session",
+    "category": "Options & Dispersion",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "dispersion"
+    },
+    "instructions": "Return each constituent option vega as a fraction of total constituent vega for its date; index must retain original row numbers.",
+    "reference": "df.loc[df[\"symbol\"].ne(\"INDEX\"), \"vega\"] / df.loc[df[\"symbol\"].ne(\"INDEX\")].groupby(\"date\")[\"vega\"].transform(\"sum\")",
+    "hint": "Work inside out. Exclude index-option exposure from both numerator and denominator.",
+    "explanation": [
+      {
+        "code": "ne(INDEX)",
+        "meaning": "Exclude index-option exposure from both numerator and denominator."
+      },
+      {
+        "code": "groupby(date).transform(sum)",
+        "meaning": "Repeat same-day constituent vega total at each relevant row."
+      },
+      {
+        "code": "division",
+        "meaning": "Calculate each component share with original row index alignment."
+      }
+    ]
+  }
+]

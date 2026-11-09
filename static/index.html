@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DataGym — Visual Python Fluency</title>
+  <link href="/static/style.css" rel="stylesheet" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><div class="brand-icon">▦</div><div><strong>DataGym</strong><small>VISUAL PYTHON FLUENCY</small></div></div>
+      <div class="top-stats" id="topStats"><span>— solved</span><span>— streak</span><span>— templates</span></div>
+      <div class="top-actions"><button id="reloadBtn" class="button-ghost" title="Import edited question packs">↻ Reload library</button><button id="nextBtn" class="button-primary">Next exercise <span>→</span></button></div>
+    </header>
+
+    <div class="toolbar">
+      <label>Track <select id="category"><option>All</option></select></label>
+      <label>Difficulty <select id="difficulty"><option value="All">All levels</option><option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option><option value="4">Level 4</option><option value="5">Level 5</option></select></label>
+      <div class="pill"><span class="dot"></span> LOCAL ENGINE</div>
+      <div class="workspace-label">EDIT <code>workspace/solution.py</code> IN VS CODE</div>
+    </div>
+
+    <section class="exercise-panel">
+      <div class="exercise-top"><div id="categoryTag" class="tag">Loading</div><div class="exercise-id" id="exerciseId">—</div></div>
+      <h1 id="exerciseTitle">Loading your exercise...</h1>
+      <p id="instructions">The data and target are generated automatically.</p>
+      <div class="exercise-meta"><span id="levelTag">LEVEL —</span><span>·</span><span id="timer">00:00 elapsed</span><span>·</span><span id="softGoal">2:00 soft goal</span></div>
+    </section>
+
+    <section class="previews">
+      <article class="preview-card">
+        <div class="preview-head"><div><div class="eyebrow">01 / SOURCE</div><h2>Original data</h2></div><span class="lock">FIXED</span></div>
+        <div class="table-viewport" id="inputTable"><div class="empty">Loading…</div></div>
+        <div class="preview-footer" id="inputMeta">—</div>
+      </article>
+      <article class="preview-card live-card">
+        <div class="preview-head"><div><div class="eyebrow">02 / LIVE</div><h2>Your result</h2></div><span class="live-pill" id="liveState">AWAITING</span></div>
+        <div class="table-viewport" id="liveTable"><div class="empty">Write a solution</div></div>
+        <div class="preview-footer" id="liveMeta">—</div>
+      </article>
+      <article class="preview-card">
+        <div class="preview-head"><div><div class="eyebrow">03 / GOAL</div><h2>Target result</h2></div><span class="lock">FIXED</span></div>
+        <div class="table-viewport" id="targetTable"><div class="empty">Loading…</div></div>
+        <div class="preview-footer" id="targetMeta">—</div>
+      </article>
+    </section>
+
+    <section id="statusBox" class="status-box"><span id="statusIcon" class="status-icon">●</span><div><strong id="statusTitle">Ready to start</strong><p id="statusMessage">Write your solution in VS Code; previews update after the file saves.</p></div></section>
+
+    <section class="bottom">
+      <div class="bottom-left"><div class="eyebrow">SOLUTION FILE</div><div class="fileline"><code id="solutionPath">workspace/solution.py</code><button id="copyPath" class="button-ghost mini">Copy path</button></div><p>Use your normal editor, theme, Python completion, and Neovim bindings. Set VS Code Auto Save for near-live refresh.</p></div>
+      <div class="bottom-right"><button id="resetBtn" class="button-ghost">Reset code</button><button id="hintBtn" class="button-ghost">Hint</button><button id="revealBtn" class="button-ghost">Reveal solution</button></div>
+    </section>
+    <div id="assistBox" class="assist-box" hidden></div>
+    <footer><span id="footProgress">0 previews · 0 hints</span><span>SQLite exercise library · randomized datasets · native Python editor</span></footer>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

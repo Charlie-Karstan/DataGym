@@ -1,0 +1,749 @@
+
+[
+  {
+    "id": "sel-series",
+    "title": "Extract a Series",
+    "category": "Indexing",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return the price column as a Series.",
+    "reference": "df[\"price\"]",
+    "hint": "Use single square brackets around the column name.",
+    "explanation": [
+      {"code": "df", "meaning": "The supplied DataFrame."},
+      {"code": "[\"price\"]", "meaning": "One column label inside single brackets selects a Series, not a DataFrame."}
+    ]
+  },
+  {
+    "id": "sel-one-column-frame",
+    "title": "Preserve two dimensions",
+    "category": "Indexing",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return the price column as a one-column DataFrame (not a Series).",
+    "reference": "df[[\"price\"]]",
+    "hint": "Double brackets preserve the DataFrame structure.",
+    "explanation": [
+      {"code": "df", "meaning": "The supplied DataFrame."},
+      {"code": "[[\"price\"]]", "meaning": "The inner list selects column labels; the outer brackets index the DataFrame. The result stays two-dimensional."}
+    ]
+  },
+  {
+    "id": "sel-two-columns",
+    "title": "Select two columns",
+    "category": "Indexing",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return only the price and volume columns, in that order.",
+    "reference": "df[[\"price\", \"volume\"]]",
+    "hint": "Pass a list of column labels.",
+    "explanation": [
+      {"code": "df", "meaning": "The supplied DataFrame."},
+      {"code": "[[\"price\", \"volume\"]]", "meaning": "A list of two column labels selects both columns in the specified order."}
+    ]
+  },
+  {
+    "id": "sel-scalar-label",
+    "title": "Find a labeled cell",
+    "category": "Indexing",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Get the single price value for ticker MSFT (scalar).",
+    "reference": "df.loc[\"MSFT\", \"price\"]",
+    "hint": "Use .loc[row_label, column_label].",
+    "explanation": [
+      {"code": "df.loc", "meaning": "Label-based lookup (not numerical positions)."},
+      {"code": "\"MSFT\"", "meaning": "The row index label to find."},
+      {"code": "\"price\"", "meaning": "The column label to find. Selecting one row and one column gives a scalar."}
+    ]
+  },
+  {
+    "id": "sel-rows-columns",
+    "title": "Rectangular selection",
+    "category": "Indexing",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Keep rows AAPL and NVDA, and columns price and return_1d, in that order.",
+    "reference": "df.loc[[\"AAPL\", \"NVDA\"], [\"price\", \"return_1d\"]]",
+    "hint": "Use .loc with a list of row labels and a list of column labels.",
+    "explanation": [
+      {"code": "df.loc", "meaning": "Select by row and column labels."},
+      {"code": "[\"AAPL\", \"NVDA\"]", "meaning": "The exact row labels to keep, in this order."},
+      {"code": "[\"price\", \"return_1d\"]", "meaning": "The exact column labels to keep, in this order."}
+    ]
+  },
+  {
+    "id": "sel-iloc-first-three",
+    "title": "Positional slicing",
+    "category": "Indexing",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return the first three rows and first two columns using positions.",
+    "reference": "df.iloc[:3, :2]",
+    "hint": "Use .iloc and slice endpoints; stop positions are excluded.",
+    "explanation": [
+      {"code": "df.iloc", "meaning": "Position-based selection: positions start at zero."},
+      {"code": ":3", "meaning": "Rows from position 0 up to, but not including, 3."},
+      {"code": ":2", "meaning": "Columns from position 0 up to, but not including, 2."}
+    ]
+  },
+  {
+    "id": "sel-iloc-value",
+    "title": "Single positional element",
+    "category": "Indexing",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return the scalar in the third row and second column.",
+    "reference": "df.iloc[2, 1]",
+    "hint": "Both .iloc positions are zero-based.",
+    "explanation": [
+      {"code": "df.iloc", "meaning": "Select by numerical positions rather than labels."},
+      {"code": "2", "meaning": "Row position 2, i.e. the third row."},
+      {"code": "1", "meaning": "Column position 1, i.e. the second column. Two integer selectors return a scalar."}
+    ]
+  },
+  {
+    "id": "sel-iloc-row-frame",
+    "title": "Keep a single row 2D",
+    "category": "Indexing",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return the second row, preserving a one-row DataFrame.",
+    "reference": "df.iloc[[1]]",
+    "hint": "Wrapping the position in a list retains the row dimension.",
+    "explanation": [
+      {"code": "df.iloc", "meaning": "Index using row positions."},
+      {"code": "[[1]]", "meaning": "The inner list contains one row position. A list preserves a two-dimensional DataFrame; a bare 1 would give a Series."}
+    ]
+  },
+  {
+    "id": "flt-volume",
+    "title": "Volume threshold",
+    "category": "Filtering",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Keep stocks with volume strictly above {threshold}. Return only price and return_1d columns.",
+    "reference": "df.loc[df[\"volume\"] > {threshold}, [\"price\", \"return_1d\"]]",
+    "hint": "Construct a Boolean mask, then use .loc[mask, columns].",
+    "parameters": {"threshold": {"choices": [150, 250, 350, 450]}},
+    "explanation": [
+      {"code": "df[\"volume\"] > {threshold}", "meaning": "Compare each volume to the threshold, producing a Boolean Series."},
+      {"code": "df.loc[mask, columns]", "meaning": "The first .loc argument chooses rows; the second chooses columns."},
+      {"code": "[\"price\", \"return_1d\"]", "meaning": "Keep only these columns in this order."}
+    ]
+  },
+  {
+    "id": "flt-price-return",
+    "title": "Combined condition",
+    "category": "Filtering",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Keep rows with price above {threshold} AND a positive return_1d. Return price and return_1d.",
+    "reference": "df.loc[(df[\"price\"] > {threshold}) & (df[\"return_1d\"] > 0), [\"price\", \"return_1d\"]]",
+    "hint": "Parenthesize each condition before using &.",
+    "parameters": {"threshold": {"choices": [80, 150, 220]}},
+    "explanation": [
+      {"code": "df[\"price\"] > {threshold}", "meaning": "First elementwise condition: price above the threshold."},
+      {"code": "df[\"return_1d\"] > 0", "meaning": "Second elementwise condition: positive daily return."},
+      {"code": "(...) & (...)", "meaning": "Combine Boolean Series with elementwise AND; parentheses are required around comparisons."},
+      {"code": "df.loc[mask, columns]", "meaning": "Use the combined mask to filter rows and select the requested columns."}
+    ]
+  },
+  {
+    "id": "flt-sectors",
+    "title": "Membership filtering",
+    "category": "Filtering",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return sector and volume for stocks in Technology or Financials.",
+    "reference": "df.loc[df[\"sector\"].isin([\"Technology\", \"Financials\"]), [\"sector\", \"volume\"]]",
+    "hint": "Use .isin([...]) to test membership.",
+    "explanation": [
+      {"code": "df[\"sector\"]", "meaning": "The sector column, as a Series."},
+      {"code": ".isin([\"Technology\", \"Financials\"])", "meaning": "True when each sector value belongs to this list."},
+      {"code": "df.loc[mask, [\"sector\", \"volume\"]]", "meaning": "Keep matching rows and two specified columns."}
+    ]
+  },
+  {
+    "id": "flt-boolean-series",
+    "title": "Build a Boolean Series",
+    "category": "Filtering",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return a Boolean Series indicating which stocks had a positive return_1d.",
+    "reference": "df[\"return_1d\"] > 0",
+    "hint": "A comparison to a scalar returns a Boolean Series.",
+    "explanation": [
+      {"code": "df[\"return_1d\"]", "meaning": "Return the daily-return Series."},
+      {"code": "> 0", "meaning": "Compare each element with zero; the output is a Boolean Series retaining its index."}
+    ]
+  },
+  {
+    "id": "flt-pe-range",
+    "title": "Filter a range",
+    "category": "Filtering",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return only the pe column for stocks with pe between {lo} and {hi}, inclusive. Keep the result as a DataFrame.",
+    "reference": "df.loc[df[\"pe\"].between({lo}, {hi}), [\"pe\"]]",
+    "hint": "Combine .between(lo, hi) and a one-element column list.",
+    "parameters": {"lo": {"choices": [10, 15, 20]}, "hi": {"choices": [30, 35, 40]}},
+    "explanation": [
+      {"code": "df[\"pe\"]", "meaning": "Extract the price-to-earnings column."},
+      {"code": ".between({lo}, {hi})", "meaning": "True when the value falls between the bounds, inclusive by default."},
+      {"code": "df.loc[mask, [\"pe\"]]", "meaning": "Filter matching rows and retain the output as a one-column DataFrame."}
+    ]
+  },
+  {
+    "id": "flt-sorted-returns",
+    "title": "Sort and select",
+    "category": "Filtering",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Sort rows by return_1d descending and return only price and return_1d.",
+    "reference": "df.sort_values(\"return_1d\", ascending=False)[[\"price\", \"return_1d\"]]",
+    "hint": "Use sort_values(..., ascending=False).",
+    "explanation": [
+      {"code": "df.sort_values(\"return_1d\", ascending=False)", "meaning": "Sort rows by daily return, highest first."},
+      {"code": "[[\"price\", \"return_1d\"]]", "meaning": "After sorting, keep exactly these two columns."}
+    ]
+  },
+  {
+    "id": "flt-top-volume",
+    "title": "Top volume stocks",
+    "category": "Filtering",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return the three stocks with highest volume, showing volume and price in that order.",
+    "reference": "df.nlargest(3, \"volume\")[[\"volume\", \"price\"]]",
+    "hint": "Try .nlargest(3, \"volume\").",
+    "explanation": [
+      {"code": "df.nlargest(3, \"volume\")", "meaning": "Keep the three rows with the highest trading volume, ordered descending."},
+      {"code": "[[\"volume\", \"price\"]]", "meaning": "Select and reorder the resulting columns."}
+    ]
+  },
+  {
+    "id": "flt-negate",
+    "title": "Invert a mask",
+    "category": "Filtering",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return only price for stocks NOT in Technology; preserve a DataFrame.",
+    "reference": "df.loc[~df[\"sector\"].eq(\"Technology\"), [\"price\"]]",
+    "hint": "Negate a Boolean mask with ~; parenthesize compound masks.",
+    "explanation": [
+      {"code": "df[\"sector\"].eq(\"Technology\")", "meaning": "Create a Boolean Series for Technology rows."},
+      {"code": "~", "meaning": "Invert each Boolean value; True becomes False and vice versa."},
+      {"code": "df.loc[mask, [\"price\"]]", "meaning": "Keep non-Technology rows and only their price column, as a DataFrame."}
+    ]
+  },
+  {
+    "id": "trn-calculate-notional",
+    "title": "Computed column",
+    "category": "Transform",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Add a column notional equal to price × volume. Return the entire DataFrame with the new column at the end.",
+    "reference": "df.assign(notional=df[\"price\"] * df[\"volume\"])",
+    "hint": "assign creates a new DataFrame with the extra column.",
+    "explanation": [
+      {"code": "df[\"price\"] * df[\"volume\"]", "meaning": "Multiply the two Series elementwise, matching their indices."},
+      {"code": "notional=", "meaning": "Name the new column notional."},
+      {"code": "df.assign(...)", "meaning": "Return a new DataFrame with the additional column; the original input remains unchanged."}
+    ]
+  },
+  {
+    "id": "trn-absolute-return",
+    "title": "Absolute returns",
+    "category": "Transform",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return a Series of the absolute values of return_1d.",
+    "reference": "df[\"return_1d\"].abs()",
+    "hint": "Series.abs() gives elementwise absolute values.",
+    "explanation": [
+      {"code": "df[\"return_1d\"]", "meaning": "Select the Series of daily returns."},
+      {"code": ".abs()", "meaning": "Return absolute values elementwise; negative returns become positive magnitudes."}
+    ]
+  },
+  {
+    "id": "trn-price-increase",
+    "title": "Price scaling",
+    "category": "Transform",
+    "difficulty": 1,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return the price Series multiplied by {factor} and rounded to two decimals.",
+    "reference": "(df[\"price\"] * {factor}).round(2)",
+    "hint": "Multiply the Series before calling .round(2).",
+    "parameters": {"factor": {"choices": [1.1, 1.2, 1.5]}},
+    "explanation": [
+      {"code": "df[\"price\"]", "meaning": "The price Series."},
+      {"code": "* {factor}", "meaning": "Multiply every price by the supplied factor (vectorized arithmetic)."},
+      {"code": ".round(2)", "meaning": "Round each resulting value to two decimal places."}
+    ]
+  },
+  {
+    "id": "trn-volume-buckets",
+    "title": "Integer volume buckets",
+    "category": "Transform",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return a Series whose elements are volume floor-divided by {divisor}.",
+    "reference": "df[\"volume\"] // {divisor}",
+    "hint": "The // operator performs elementwise floor division.",
+    "parameters": {"divisor": {"choices": [100, 200]}},
+    "explanation": [
+      {"code": "df[\"volume\"]", "meaning": "Select volume as a Series."},
+      {"code": "// {divisor}", "meaning": "Floor-divide each element by the divisor, discarding any remainder."}
+    ]
+  },
+  {
+    "id": "trn-rank-return",
+    "title": "Ranks",
+    "category": "Transform",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Return a Series ranking return_1d in descending order, using the min method for ties.",
+    "reference": "df[\"return_1d\"].rank(ascending=False, method=\"min\")",
+    "hint": "Series.rank has ascending and method parameters.",
+    "explanation": [
+      {"code": "df[\"return_1d\"]", "meaning": "The return Series to rank."},
+      {"code": ".rank(...)", "meaning": "Rank values instead of sorting rows."},
+      {"code": "ascending=False", "meaning": "Rank largest returns first (rank 1 is highest)."},
+      {"code": "method=\"min\"", "meaning": "Tied values receive the lowest rank occupied by that tie group."}
+    ]
+  },
+  {
+    "id": "trn-centered-price",
+    "title": "Center a Series",
+    "category": "Transform",
+    "difficulty": 2,
+    "dataset": {"kind": "stocks"},
+    "instructions": "Subtract the mean price from every price and return the resulting Series.",
+    "reference": "df[\"price\"] - df[\"price\"].mean()",
+    "hint": "A scalar subtracts from every value in a Series.",
+    "explanation": [
+      {"code": "df[\"price\"].mean()", "meaning": "Compute one scalar: the mean of the price column."},
+      {"code": "df[\"price\"] - mean", "meaning": "Subtract the same scalar from every element, yielding a mean-centered Series."}
+    ]
+  },
+  {
+    "id": "grp-side-qty",
+    "title": "Sum by trade side",
+    "category": "Grouping",
+    "difficulty": 2,
+    "dataset": {"kind": "trades"},
+    "instructions": "Return a Series containing summed qty by side (BUY and SELL).",
+    "reference": "df.groupby(\"side\")[\"qty\"].sum()",
+    "hint": "Group on side, select qty, aggregate with .sum().",
+    "explanation": [
+      {"code": "df.groupby(\"side\")", "meaning": "Partition trade rows by BUY versus SELL."},
+      {"code": "[\"qty\"]", "meaning": "Choose the quantity column from each group."},
+      {"code": ".sum()", "meaning": "Sum quantities separately within each group, returning a Series indexed by side."}
+    ]
+  },
+  {
+    "id": "grp-symbol-qty",
+    "title": "Aggregate by symbol",
+    "category": "Grouping",
+    "difficulty": 2,
+    "dataset": {"kind": "trades"},
+    "instructions": "Return summed quantities by symbol as a Series, sorted by symbol.",
+    "reference": "df.groupby(\"symbol\")[\"qty\"].sum()",
+    "hint": "Use groupby on symbol followed by qty.sum().",
+    "explanation": [
+      {"code": "df.groupby(\"symbol\")", "meaning": "Form a group for each distinct ticker symbol."},
+      {"code": "[\"qty\"]", "meaning": "Choose quantities within each ticker group."},
+      {"code": ".sum()", "meaning": "Compute total traded quantity per ticker."}
+    ]
+  },
+  {
+    "id": "grp-symbol-count",
+    "title": "Trade counts",
+    "category": "Grouping",
+    "difficulty": 2,
+    "dataset": {"kind": "trades"},
+    "instructions": "Return a Series counting rows for each symbol.",
+    "reference": "df.groupby(\"symbol\").size()",
+    "hint": "groupby(...).size() counts rows, including those with missing values.",
+    "explanation": [
+      {"code": "df.groupby(\"symbol\")", "meaning": "Group trades by ticker."},
+      {"code": ".size()", "meaning": "Count rows in each group, including rows with missing values in other columns."}
+    ]
+  },
+  {
+    "id": "grp-symbol-mean-price",
+    "title": "Mean execution price",
+    "category": "Grouping",
+    "difficulty": 2,
+    "dataset": {"kind": "trades"},
+    "instructions": "Return a Series of mean trade price by symbol.",
+    "reference": "df.groupby(\"symbol\")[\"price\"].mean()",
+    "hint": "Select price before .mean().",
+    "explanation": [
+      {"code": "df.groupby(\"symbol\")", "meaning": "Group rows by ticker."},
+      {"code": "[\"price\"]", "meaning": "Choose trade prices."},
+      {"code": ".mean()", "meaning": "Compute the arithmetic mean trade price in each ticker group."}
+    ]
+  },
+  {
+    "id": "grp-symbol-side",
+    "title": "Two-level grouping",
+    "category": "Grouping",
+    "difficulty": 3,
+    "dataset": {"kind": "trades"},
+    "instructions": "Return counts of trades grouped by symbol and then side as a MultiIndex Series.",
+    "reference": "df.groupby([\"symbol\", \"side\"]).size()",
+    "hint": "Pass a list of grouping columns.",
+    "explanation": [
+      {"code": "df.groupby([\"symbol\", \"side\"])", "meaning": "Group by combinations of two keys, producing a MultiIndex."},
+      {"code": ".size()", "meaning": "Count trades for every symbol/side combination."}
+    ]
+  },
+  {
+    "id": "grp-notional",
+    "title": "Aggregate computed notional",
+    "category": "Grouping",
+    "difficulty": 3,
+    "dataset": {"kind": "trades"},
+    "instructions": "For each symbol, sum qty × price. Return the totals as a Series named notional.",
+    "reference": "df.assign(notional=df[\"qty\"] * df[\"price\"]).groupby(\"symbol\")[\"notional\"].sum()",
+    "hint": "Create notional with assign, then group and sum.",
+    "explanation": [
+      {"code": "df[\"qty\"] * df[\"price\"]", "meaning": "Compute notional traded value per row."},
+      {"code": ".assign(notional=...)", "meaning": "Add that derived column to a new DataFrame."},
+      {"code": ".groupby(\"symbol\")[\"notional\"]", "meaning": "Collect notional values by ticker."},
+      {"code": ".sum()", "meaning": "Sum notional within each ticker group."}
+    ]
+  },
+  {
+    "id": "grp-agg",
+    "title": "Multi-aggregation",
+    "category": "Grouping",
+    "difficulty": 3,
+    "dataset": {"kind": "trades"},
+    "instructions": "Return a DataFrame by symbol, with total_qty (sum of qty) and avg_price (mean price), in that order.",
+    "reference": "df.groupby(\"symbol\").agg(total_qty=(\"qty\", \"sum\"), avg_price=(\"price\", \"mean\"))",
+    "hint": "Named aggregation uses new_name=(column, function).",
+    "explanation": [
+      {"code": "df.groupby(\"symbol\")", "meaning": "Group trade rows by ticker."},
+      {"code": ".agg(...)", "meaning": "Apply multiple named aggregations, producing a DataFrame."},
+      {"code": "total_qty=(\"qty\", \"sum\")", "meaning": "Create total_qty from the sum of qty."},
+      {"code": "avg_price=(\"price\", \"mean\")", "meaning": "Create avg_price from the mean of price."}
+    ]
+  },
+  {
+    "id": "ts-mean",
+    "title": "Average return per asset",
+    "category": "Time Series",
+    "difficulty": 2,
+    "dataset": {"kind": "returns"},
+    "instructions": "Return a Series of average returns, one entry per asset.",
+    "reference": "df.mean(axis=0)",
+    "hint": "Aggregate down the rows (axis=0).",
+    "explanation": [
+      {"code": "df", "meaning": "The full time-by-asset return DataFrame."},
+      {"code": ".mean(axis=0)", "meaning": "Aggregate down rows (time), producing one mean return per column (asset)."}
+    ]
+  },
+  {
+    "id": "ts-asset-select",
+    "title": "Select assets",
+    "category": "Time Series",
+    "difficulty": 1,
+    "dataset": {"kind": "returns"},
+    "instructions": "Return only AAPL and NVDA columns, as a DataFrame.",
+    "reference": "df[[\"AAPL\", \"NVDA\"]]",
+    "hint": "Use a list of column labels.",
+    "explanation": [
+      {"code": "df", "meaning": "The returns DataFrame."},
+      {"code": "[[\"AAPL\", \"NVDA\"]]", "meaning": "Keep only the AAPL and NVDA columns; double brackets keep two dimensions."}
+    ]
+  },
+  {
+    "id": "ts-spread",
+    "title": "Daily return spread",
+    "category": "Time Series",
+    "difficulty": 2,
+    "dataset": {"kind": "returns"},
+    "instructions": "Return the daily AAPL minus MSFT return spread as a Series.",
+    "reference": "df[\"AAPL\"] - df[\"MSFT\"]",
+    "hint": "Subtract two aligned Series.",
+    "explanation": [
+      {"code": "df[\"AAPL\"]", "meaning": "The AAPL return Series."},
+      {"code": "df[\"MSFT\"]", "meaning": "The MSFT return Series."},
+      {"code": "-", "meaning": "Subtract elementwise, aligned by date index; the result is a Series."}
+    ]
+  },
+  {
+    "id": "ts-correlation",
+    "title": "Correlation matrix",
+    "category": "Time Series",
+    "difficulty": 3,
+    "dataset": {"kind": "returns"},
+    "instructions": "Return the full Pearson correlation matrix between asset return columns.",
+    "reference": "df.corr()",
+    "hint": "DataFrame.corr() computes pairwise column correlations.",
+    "explanation": [
+      {"code": "df", "meaning": "The matrix of asset returns over dates."},
+      {"code": ".corr()", "meaning": "Compute the pairwise Pearson correlation across columns, returning a square asset-by-asset matrix."}
+    ]
+  },
+  {
+    "id": "ts-rolling",
+    "title": "Moving average",
+    "category": "Time Series",
+    "difficulty": 3,
+    "dataset": {"kind": "returns"},
+    "instructions": "Return the 3-day rolling mean DataFrame, using the default min_periods.",
+    "reference": "df.rolling(3).mean()",
+    "hint": "Chain .rolling(3) and .mean().",
+    "explanation": [
+      {"code": "df.rolling(3)", "meaning": "Create a moving window of three consecutive rows per column."},
+      {"code": ".mean()", "meaning": "Average each window. The first two rows are NaN because a full window is not yet available."}
+    ]
+  },
+  {
+    "id": "ts-cumulative",
+    "title": "Cumulative returns",
+    "category": "Time Series",
+    "difficulty": 3,
+    "dataset": {"kind": "returns"},
+    "instructions": "Return the cumulative compounded simple returns for each asset, computed as (1 + r).cumprod() - 1.",
+    "reference": "(1 + df).cumprod() - 1",
+    "hint": "Apply cumprod column-wise after adding one.",
+    "explanation": [
+      {"code": "1 + df", "meaning": "Convert each simple return into a gross return factor."},
+      {"code": ".cumprod()", "meaning": "Multiply factors cumulatively down the date axis."},
+      {"code": "- 1", "meaning": "Convert the cumulative gross factors back into cumulative simple returns."}
+    ]
+  },
+  {
+    "id": "ts-cross-sectional",
+    "title": "Cross-sectional mean",
+    "category": "Time Series",
+    "difficulty": 2,
+    "dataset": {"kind": "returns"},
+    "instructions": "For each date, return the average across all four assets as a Series.",
+    "reference": "df.mean(axis=1)",
+    "hint": "axis=1 aggregates across the columns.",
+    "explanation": [
+      {"code": "df", "meaning": "Dates are rows and assets are columns."},
+      {"code": ".mean(axis=1)", "meaning": "Aggregate across columns within each row; gives one mean across assets for each date."}
+    ]
+  },
+  {
+    "id": "np-top-rows",
+    "title": "Slice first rows",
+    "category": "NumPy",
+    "difficulty": 1,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Return the first two rows of arr, keeping all columns.",
+    "reference": "arr[:2, :]",
+    "hint": "First index slices rows, second slices columns.",
+    "explanation": [
+      {"code": "arr", "meaning": "The supplied NumPy matrix."},
+      {"code": "[:2, :]", "meaning": "Before the comma selects rows 0–1 (stop 2 excluded); after the comma selects all columns."}
+    ]
+  },
+  {
+    "id": "np-third-column",
+    "title": "Extract a column",
+    "category": "NumPy",
+    "difficulty": 1,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Return the third column of arr as a one-dimensional NumPy array.",
+    "reference": "arr[:, 2]",
+    "hint": "Use : for all rows and integer 2 for column index.",
+    "explanation": [
+      {"code": "arr", "meaning": "The supplied NumPy matrix."},
+      {"code": "[:, 2]", "meaning": "Keep every row and select column position 2. Integer indexing removes the column dimension, yielding a 1D array."}
+    ]
+  },
+  {
+    "id": "np-column-2d",
+    "title": "Keep a dimension",
+    "category": "NumPy",
+    "difficulty": 2,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Return the third column of arr as a two-dimensional array with shape (5, 1).",
+    "reference": "arr[:, 2:3]",
+    "hint": "Slice 2:3 rather than indexing with integer 2.",
+    "explanation": [
+      {"code": "arr", "meaning": "The supplied NumPy matrix."},
+      {"code": "[:, 2:3]", "meaning": "Keep all rows and slice columns from 2 through before 3. A slice retains a 2D column dimension."}
+    ]
+  },
+  {
+    "id": "np-mask",
+    "title": "Boolean matrix",
+    "category": "NumPy",
+    "difficulty": 1,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Return a Boolean array marking elements strictly above {threshold}.",
+    "reference": "arr > {threshold}",
+    "hint": "Vectorized comparison produces a Boolean array.",
+    "parameters": {"threshold": {"choices": [3, 5, 7]}},
+    "explanation": [
+      {"code": "arr", "meaning": "The NumPy array."},
+      {"code": "> {threshold}", "meaning": "Compare every element to the threshold using broadcasting, returning a Boolean array of the same shape."}
+    ]
+  },
+  {
+    "id": "np-row-mask",
+    "title": "Filter rows using column",
+    "category": "NumPy",
+    "difficulty": 2,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Keep only rows where the first column is strictly greater than {threshold}; retain all columns.",
+    "reference": "arr[arr[:, 0] > {threshold}]",
+    "hint": "First construct a row mask with arr[:,0].",
+    "parameters": {"threshold": {"choices": [3, 5, 7]}},
+    "explanation": [
+      {"code": "arr[:, 0]", "meaning": "Take column 0 for every row, producing a 1D array."},
+      {"code": "> {threshold}", "meaning": "Create one Boolean selector per row."},
+      {"code": "arr[mask]", "meaning": "Use that mask to keep whole rows from the original matrix."}
+    ]
+  },
+  {
+    "id": "np-sum-columns",
+    "title": "Column sums",
+    "category": "NumPy",
+    "difficulty": 2,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Return column sums of arr as a 1D array.",
+    "reference": "arr.sum(axis=0)",
+    "hint": "axis=0 collapses the row axis.",
+    "explanation": [
+      {"code": "arr.sum(...)", "meaning": "Sum values along a specified axis."},
+      {"code": "axis=0", "meaning": "Collapse the row axis; obtain one sum per column."}
+    ]
+  },
+  {
+    "id": "np-sum-rows",
+    "title": "Row sums",
+    "category": "NumPy",
+    "difficulty": 2,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Return row sums of arr as a 1D array.",
+    "reference": "arr.sum(axis=1)",
+    "hint": "axis=1 collapses the column axis.",
+    "explanation": [
+      {"code": "arr.sum(...)", "meaning": "Sum values along a specified axis."},
+      {"code": "axis=1", "meaning": "Collapse the column axis; obtain one sum per row."}
+    ]
+  },
+  {
+    "id": "np-transpose",
+    "title": "Transpose axes",
+    "category": "NumPy",
+    "difficulty": 1,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Transpose the matrix: return arr with its axes swapped.",
+    "reference": "arr.T",
+    "hint": "A 2D array transposes with .T.",
+    "explanation": [
+      {"code": "arr", "meaning": "The source NumPy matrix, here 5 rows by 6 columns."},
+      {"code": ".T", "meaning": "Transpose: swap axis 0 and axis 1, turning an (m, n) array into (n, m). No sorting occurs."}
+    ]
+  },
+  {
+    "id": "np-middle-columns",
+    "title": "Column slice",
+    "category": "NumPy",
+    "difficulty": 1,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Keep all rows but only columns at positions 1, 2, and 3.",
+    "reference": "arr[:, 1:4]",
+    "hint": "Slicing excludes the stop index.",
+    "explanation": [
+      {"code": "arr", "meaning": "The original NumPy matrix."},
+      {"code": "[:, 1:4]", "meaning": "Select all rows and column positions 1, 2, and 3; the stop index 4 is exclusive."}
+    ]
+  },
+  {
+    "id": "np-reshape",
+    "title": "Reshape elements",
+    "category": "NumPy",
+    "difficulty": 2,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Reshape arr from 5×6 to 3×10 without changing element order.",
+    "reference": "arr.reshape(3, 10)",
+    "hint": "reshape retains element order by default.",
+    "explanation": [
+      {"code": "arr", "meaning": "The original NumPy array."},
+      {"code": ".reshape(3, 10)", "meaning": "Reinterpret the 30 elements as 3 rows by 10 columns, using NumPy’s default C-order traversal."}
+    ]
+  },
+  {
+    "id": "np-broadcast",
+    "title": "Broadcast column means",
+    "category": "NumPy",
+    "difficulty": 3,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Subtract each column mean from the corresponding column in arr, producing a float matrix.",
+    "reference": "arr - arr.mean(axis=0)",
+    "hint": "A shape-(6,) vector broadcasts over 5 rows.",
+    "explanation": [
+      {"code": "arr.mean(axis=0)", "meaning": "Compute the column means as a 1D array."},
+      {"code": "arr - ...", "meaning": "Subtract these column means from every row via broadcasting; the result retains the matrix shape."}
+    ]
+  },
+  {
+    "id": "np-where",
+    "title": "Conditional values",
+    "category": "NumPy",
+    "difficulty": 2,
+    "dataset": {"kind": "matrix"},
+    "instructions": "Return an integer array containing 1 for even elements and 0 for odd elements.",
+    "reference": "np.where(arr % 2 == 0, 1, 0)",
+    "hint": "np.where(condition, value_if_true, value_if_false).",
+    "explanation": [
+      {"code": "arr % 2 == 0", "meaning": "Remainder 0 after division by 2 identifies even elements, returning a Boolean array."},
+      {"code": "np.where(condition, 1, 0)", "meaning": "Return 1 where the condition is true and 0 otherwise, preserving the input shape."}
+    ]
+  },
+  {
+    "id": "np-vector-filter",
+    "title": "Filter a vector",
+    "category": "NumPy",
+    "difficulty": 1,
+    "dataset": {"kind": "vector"},
+    "instructions": "Return only values strictly greater than {threshold}.",
+    "reference": "arr[arr > {threshold}]",
+    "hint": "Use a Boolean mask as an index.",
+    "parameters": {"threshold": {"choices": [5, 10, 15]}},
+    "explanation": [
+      {"code": "arr > {threshold}", "meaning": "Create a Boolean mask by comparing each vector element."},
+      {"code": "arr[mask]", "meaning": "Use the mask to keep only values above the threshold."}
+    ]
+  },
+  {
+    "id": "np-vector-reshape",
+    "title": "Vector to matrix",
+    "category": "NumPy",
+    "difficulty": 1,
+    "dataset": {"kind": "vector"},
+    "instructions": "Reshape the 12-element vector arr into a 3×4 matrix.",
+    "reference": "arr.reshape(3, 4)",
+    "hint": "3 × 4 = 12 elements.",
+    "explanation": [
+      {"code": "arr", "meaning": "A 1D NumPy array containing 12 elements."},
+      {"code": ".reshape(3, 4)", "meaning": "Create a 3-by-4 matrix. The element count stays 12."}
+    ]
+  },
+  {
+    "id": "np-vector-cumsum",
+    "title": "Cumulative vector sum",
+    "category": "NumPy",
+    "difficulty": 2,
+    "dataset": {"kind": "vector"},
+    "instructions": "Return the cumulative sum of arr.",
+    "reference": "np.cumsum(arr)",
+    "hint": "Use np.cumsum or arr.cumsum().",
+    "explanation": [
+      {"code": "arr", "meaning": "The source 1D array."},
+      {"code": "np.cumsum(arr)", "meaning": "Return cumulative sums: each output element includes all values up through that position."}
+    ]
+  }
+]

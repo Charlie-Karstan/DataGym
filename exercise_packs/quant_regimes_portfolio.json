@@ -1,0 +1,321 @@
+[
+  {
+    "id": "q-xi-stress-days",
+    "title": "High-stress regime periods",
+    "category": "Regimes & Portfolio",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Return ret, vol and p_stress for dates where the stress-regime probability is >= {prob}, ordered from most stressed to least.",
+    "reference": "df.loc[df[\"p_stress\"].ge({prob}), [\"ret\",\"vol\",\"p_stress\"]].sort_values(\"p_stress\", ascending=False)",
+    "hint": "Work inside out. Mark dates with stress-regime probability at least the threshold.",
+    "explanation": [
+      {
+        "code": "ge({prob})",
+        "meaning": "Mark dates with stress-regime probability at least the threshold."
+      },
+      {
+        "code": "loc",
+        "meaning": "Retain the three relevant diagnostics."
+      },
+      {
+        "code": "sort_values",
+        "meaning": "Show strongest stress evidence first."
+      }
+    ],
+    "parameters": {
+      "prob": {
+        "choices": [
+          0.4,
+          0.5,
+          0.65
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-xi-regime-entropy",
+    "title": "Regime entropy indicator",
+    "category": "Regimes & Portfolio",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Compute binary probability entropy -p*log(p)-(1-p)*log(1-p) as a Series for each date.",
+    "reference": "-df[\"p_risk\"]*np.log(df[\"p_risk\"]) - df[\"p_stress\"]*np.log(df[\"p_stress\"])",
+    "hint": "Work inside out. Vectorize the log calculation over every date.",
+    "explanation": [
+      {
+        "code": "np.log(series)",
+        "meaning": "Vectorize the log calculation over every date."
+      },
+      {
+        "code": "-p log p terms",
+        "meaning": "Combine weighted uncertainty contributions for both regimes; larger entropy means a less decisive posterior."
+      }
+    ]
+  },
+  {
+    "id": "q-xi-portfolio-weights",
+    "title": "Volatility-scaled exposure",
+    "category": "Regimes & Portfolio",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Return a Series of lagged signal clipped to [-1,1], divided by previous-day volatility, and then clipped to [-{cap}, {cap}].",
+    "reference": "(df[\"signal\"].shift(1).clip(-1,1) / df[\"vol\"].shift(1)).clip(-{cap}, {cap})",
+    "hint": "Work inside out. Only previous-date information is available for today’s weight.",
+    "explanation": [
+      {
+        "code": "shift(1) on signal and vol",
+        "meaning": "Only previous-date information is available for today’s weight."
+      },
+      {
+        "code": "clip(-1,1)",
+        "meaning": "Bound the directional conviction before scaling."
+      },
+      {
+        "code": "divide by vol then clip",
+        "meaning": "Apply inverse-risk scaling followed by a leverage limit."
+      }
+    ],
+    "parameters": {
+      "cap": {
+        "choices": [
+          2,
+          3,
+          4
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-xi-regime-switches",
+    "title": "Regime classification changes",
+    "category": "Regimes & Portfolio",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Return a Boolean Series identifying dates where the binary stress classification (p_stress > 0.5) changed versus the prior date.",
+    "reference": "df[\"p_stress\"].gt(0.5).ne(df[\"p_stress\"].gt(0.5).shift(1))",
+    "hint": "Work inside out. Create one Boolean regime state per date.",
+    "explanation": [
+      {
+        "code": "gt(0.5)",
+        "meaning": "Create one Boolean regime state per date."
+      },
+      {
+        "code": "shift(1)",
+        "meaning": "Align yesterday’s classification with today’s date."
+      },
+      {
+        "code": "ne",
+        "meaning": "Mark changes; first row is True because previous state is missing."
+      }
+    ]
+  },
+  {
+    "id": "q-xi-forecast-error",
+    "title": "Out-of-sample forecast residuals",
+    "category": "Regimes & Portfolio",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Return realized-minus-forecast errors only on dates with absolute error strictly above {threshold}.",
+    "reference": "(df[\"ret\"] - df[\"forecast\"]).loc[lambda s: s.abs().gt({threshold})]",
+    "hint": "Work inside out. Construct the error series date by date with aligned indices.",
+    "explanation": [
+      {
+        "code": "ret - forecast",
+        "meaning": "Construct the error series date by date with aligned indices."
+      },
+      {
+        "code": "abs().gt({threshold})",
+        "meaning": "Mark unusually large misses by their magnitude, regardless of positive or negative sign."
+      },
+      {
+        "code": "loc[lambda s: ...]",
+        "meaning": "Keep only those dates while preserving each error sign."
+      }
+    ],
+    "parameters": {
+      "threshold": {
+        "choices": [
+          0.005,
+          0.01,
+          0.015
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-xi-cumulative-alpha",
+    "title": "Cumulative active return",
+    "category": "Regimes & Portfolio",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Return compounded cumulative performance of the strategy minus compounded cumulative benchmark performance at each date.",
+    "reference": "(1 + df[\"ret\"]).cumprod() - (1 + df[\"benchmark\"]).cumprod()",
+    "hint": "Work inside out. Construct one wealth curve for the strategy and another for the benchmark.",
+    "explanation": [
+      {
+        "code": "(1+r).cumprod()",
+        "meaning": "Construct one wealth curve for the strategy and another for the benchmark."
+      },
+      {
+        "code": "subtract wealth curves",
+        "meaning": "Return the difference in cumulative total-return factors, not a cumulative sum of daily excess returns."
+      }
+    ]
+  },
+  {
+    "id": "q-portfolio-holdings-pivot",
+    "title": "Portfolio holdings matrix",
+    "category": "Regimes & Portfolio",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Return daily portfolio weight as a matrix of dates × tickers, with ticker columns ordered AAPL, JPM, MSFT, NVDA.",
+    "reference": "df.pivot(index=\"date\", columns=\"ticker\", values=\"weight\").reindex(columns=[\"AAPL\",\"JPM\",\"MSFT\",\"NVDA\"])",
+    "hint": "Work inside out. Reshape long holdings into a 2D weight matrix: one observation per (date,ticker).",
+    "explanation": [
+      {
+        "code": "pivot",
+        "meaning": "Reshape long holdings into a 2D weight matrix: one observation per (date,ticker)."
+      },
+      {
+        "code": "reindex(columns=...)",
+        "meaning": "Fix ticker ordering for matrix multiplication and reporting."
+      }
+    ]
+  },
+  {
+    "id": "q-portfolio-date-pnl",
+    "title": "Daily weighted portfolio return",
+    "category": "Regimes & Portfolio",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Compute the cross-sectional weighted portfolio return per date using each asset weight × daily return. Return a date-indexed Series.",
+    "reference": "df.assign(contribution=df[\"weight\"]*df[\"ret\"]).groupby(\"date\")[\"contribution\"].sum()",
+    "hint": "Work inside out. Calculate each asset contribution within its date.",
+    "explanation": [
+      {
+        "code": "assign(weight*return)",
+        "meaning": "Calculate each asset contribution within its date."
+      },
+      {
+        "code": "groupby(date).sum()",
+        "meaning": "Sum contributions to get one portfolio return per date. The weights in this dataset approximately sum to one per date."
+      }
+    ]
+  },
+  {
+    "id": "q-portfolio-beta",
+    "title": "Portfolio beta exposure",
+    "category": "Regimes & Portfolio",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "For each date, calculate total portfolio beta as sum(weight × beta), returning a Series.",
+    "reference": "df.assign(beta_contrib=df[\"weight\"]*df[\"beta\"]).groupby(\"date\")[\"beta_contrib\"].sum()",
+    "hint": "Work inside out. Translate holdings weights and individual beta values into contributions.",
+    "explanation": [
+      {
+        "code": "assign(beta_contrib)",
+        "meaning": "Translate holdings weights and individual beta values into contributions."
+      },
+      {
+        "code": "groupby(date).sum()",
+        "meaning": "Aggregate one portfolio-level beta for each rebalance date."
+      }
+    ]
+  },
+  {
+    "id": "q-portfolio-weight-turnover",
+    "title": "One-way turnover by date",
+    "category": "Regimes & Portfolio",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Pivot holdings to dates × tickers, difference consecutive weight vectors, take absolute values, sum across tickers and divide by two. Return a date-indexed Series.",
+    "reference": "df.pivot(index=\"date\",columns=\"ticker\",values=\"weight\").diff().abs().sum(axis=1) / 2",
+    "hint": "Work inside out. Place holdings into a consistent date-by-ticker matrix; alignment is by ticker label.",
+    "explanation": [
+      {
+        "code": "pivot",
+        "meaning": "Place holdings into a consistent date-by-ticker matrix; alignment is by ticker label."
+      },
+      {
+        "code": "diff().abs()",
+        "meaning": "Compute absolute changes in each asset weight from the prior rebalance."
+      },
+      {
+        "code": "sum(axis=1)/2",
+        "meaning": "Aggregate rebalancing turnover across assets. The first row evaluates to zero under pandas sum defaults."
+      }
+    ]
+  },
+  {
+    "id": "q-portfolio-concentration",
+    "title": "Portfolio HHI",
+    "category": "Regimes & Portfolio",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "For each date, compute portfolio concentration as sum of squared asset weights; return a Series.",
+    "reference": "df.assign(weight_sq=df[\"weight\"].pow(2)).groupby(\"date\")[\"weight_sq\"].sum()",
+    "hint": "Work inside out. Square each asset weight independently.",
+    "explanation": [
+      {
+        "code": "pow(2)",
+        "meaning": "Square each asset weight independently."
+      },
+      {
+        "code": "groupby(date).sum()",
+        "meaning": "Sum squared weights across the date’s holdings to obtain Herfindahl concentration."
+      }
+    ]
+  },
+  {
+    "id": "q-portfolio-risk-sort",
+    "title": "Rank names by risk contribution proxy",
+    "category": "Regimes & Portfolio",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Keep the top two tickers per date ranked by absolute weight × beta, returning date, ticker and a new risk_proxy column.",
+    "reference": "df.assign(risk_proxy=(df[\"weight\"]*df[\"beta\"]).abs()).sort_values([\"date\",\"risk_proxy\"],ascending=[True,False]).groupby(\"date\",sort=False).head(2)[[\"date\",\"ticker\",\"risk_proxy\"]]",
+    "hint": "Work inside out. Define a simple absolute beta-exposure proxy for each holding.",
+    "explanation": [
+      {
+        "code": "assign(weight*beta).abs",
+        "meaning": "Define a simple absolute beta-exposure proxy for each holding."
+      },
+      {
+        "code": "sort by date and risk_proxy",
+        "meaning": "Place largest exposures first within each date."
+      },
+      {
+        "code": "groupby(date).head(2)",
+        "meaning": "Take two names per date rather than two overall."
+      },
+      {
+        "code": "project",
+        "meaning": "Display only date, asset and exposure."
+      }
+    ]
+  }
+]

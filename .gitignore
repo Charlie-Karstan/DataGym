@@ -1,0 +1,29 @@
+# Python / local environment
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# DataGym user state
+workspace/solution.py
+workspace/*.sqlite3
+workspace/*.sqlite3-*
+workspace/*.db
+workspace/*.db-*
+
+# Extension build artifacts
+*.vsix
+node_modules/
+.npm/
+out/
+dist/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+*.code-workspace
+.DS_Store
+__MACOSX/

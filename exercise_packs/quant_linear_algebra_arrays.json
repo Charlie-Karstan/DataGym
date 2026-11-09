@@ -1,0 +1,360 @@
+[
+  {
+    "id": "q-la-correlation",
+    "title": "Covariance to correlation",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "risk_matrix"
+    },
+    "instructions": "Convert the covariance matrix into a correlation matrix by dividing by pairwise standard deviations.",
+    "reference": "arr / np.sqrt(np.outer(np.diag(arr), np.diag(arr)))",
+    "hint": "Work inside out. Extract asset variances from covariance diagonal.",
+    "explanation": [
+      {
+        "code": "diag(arr)",
+        "meaning": "Extract asset variances from covariance diagonal."
+      },
+      {
+        "code": "outer(diag,diag)",
+        "meaning": "For every asset pair multiply the two variances, forming a matrix."
+      },
+      {
+        "code": "sqrt and divide",
+        "meaning": "Divide covariance_ij by sigma_i*sigma_j, giving 1 on the diagonal."
+      }
+    ]
+  },
+  {
+    "id": "q-la-eigenvalues",
+    "title": "Covariance eigenvalues",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "risk_matrix"
+    },
+    "instructions": "Return eigenvalues of the symmetric covariance matrix ordered largest to smallest.",
+    "reference": "np.linalg.eigvalsh(arr)[::-1]",
+    "hint": "Work inside out. Use a symmetric-matrix eigensolver; the eigenvalues arrive sorted in ascending order.",
+    "explanation": [
+      {
+        "code": "eigvalsh",
+        "meaning": "Use a symmetric-matrix eigensolver; the eigenvalues arrive sorted in ascending order."
+      },
+      {
+        "code": "[",
+        "meaning": "-1]::Reverse the 1D eigenvalue vector to order principal risk directions from largest to smallest."
+      }
+    ]
+  },
+  {
+    "id": "q-la-inverse-cov",
+    "title": "Precision matrix",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "risk_matrix"
+    },
+    "instructions": "Compute the precision matrix by solving Sigma × X = Identity, rather than explicitly calling inv.",
+    "reference": "np.linalg.solve(arr, np.eye(arr.shape[0]))",
+    "hint": "Work inside out. Construct an identity right-hand side matching covariance dimension.",
+    "explanation": [
+      {
+        "code": "eye(arr.shape[0])",
+        "meaning": "Construct an identity right-hand side matching covariance dimension."
+      },
+      {
+        "code": "linalg.solve",
+        "meaning": "Solve all columns simultaneously for X such that Sigma@X=I; often preferable to forming inv in production."
+      }
+    ]
+  },
+  {
+    "id": "q-la-diagonal-risk",
+    "title": "Volatility vector",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "risk_matrix"
+    },
+    "instructions": "Return a 1D vector of the standard deviations implied by the covariance matrix diagonal.",
+    "reference": "np.sqrt(np.diag(arr))",
+    "hint": "Work inside out. Extract variances for each asset.",
+    "explanation": [
+      {
+        "code": "diag(arr)",
+        "meaning": "Extract variances for each asset."
+      },
+      {
+        "code": "sqrt",
+        "meaning": "Convert variance to standard deviation. The resulting vector has length equal to number of assets."
+      }
+    ]
+  },
+  {
+    "id": "q-la-condition-number",
+    "title": "Covariance conditioning",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "risk_matrix"
+    },
+    "instructions": "First convert covariance into correlation, then return the 2-norm condition number of the correlation matrix.",
+    "reference": "np.linalg.cond(arr / np.sqrt(np.outer(np.diag(arr), np.diag(arr))))",
+    "hint": "Work inside out. Convert asset variances into pairwise volatility products.",
+    "explanation": [
+      {
+        "code": "diag and outer",
+        "meaning": "Convert asset variances into pairwise volatility products."
+      },
+      {
+        "code": "elementwise division",
+        "meaning": "Normalize Sigma into an asset correlation matrix with ones on the diagonal."
+      },
+      {
+        "code": "linalg.cond",
+        "meaning": "Measure numerical conditioning of the correlation matrix, relevant for stable inversion."
+      }
+    ]
+  },
+  {
+    "id": "q-la-ols",
+    "title": "Linear factor regression",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "feature_matrix"
+    },
+    "instructions": "Fit linear least-squares factor coefficients from columns 0–2 to target column 3, with no intercept. Return the coefficient vector.",
+    "reference": "np.linalg.lstsq(arr[:, :3], arr[:, 3], rcond=None)[0]",
+    "hint": "Work inside out. Use the first three columns as the feature design matrix X.",
+    "explanation": [
+      {
+        "code": "arr[:,:3]",
+        "meaning": "Use the first three columns as the feature design matrix X."
+      },
+      {
+        "code": "arr[:,3]",
+        "meaning": "Use the fourth column as the response vector y."
+      },
+      {
+        "code": "lstsq(X,y,rcond=None)[0]",
+        "meaning": "Solve min squared residual norm of X beta - y and extract beta from the tuple returned by NumPy."
+      }
+    ]
+  },
+  {
+    "id": "q-la-fitted-values",
+    "title": "Regression fitted responses",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "feature_matrix"
+    },
+    "instructions": "Fit least-squares weights with the first three columns predicting the last column, then return all fitted y values.",
+    "reference": "arr[:, :3] @ np.linalg.lstsq(arr[:, :3], arr[:, 3], rcond=None)[0]",
+    "hint": "Work inside out. Estimate the coefficient vector from the observed features and response.",
+    "explanation": [
+      {
+        "code": "lstsq(X,y)[0]",
+        "meaning": "Estimate the coefficient vector from the observed features and response."
+      },
+      {
+        "code": "X @ coefficients",
+        "meaning": "Apply matrix multiplication to obtain a fitted value for each observation."
+      }
+    ]
+  },
+  {
+    "id": "q-la-residual",
+    "title": "Regression residual vector",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "feature_matrix"
+    },
+    "instructions": "Compute y minus fitted y for the three-factor least-squares model, as a 1D NumPy array.",
+    "reference": "arr[:, 3] - arr[:, :3] @ np.linalg.lstsq(arr[:, :3], arr[:, 3], rcond=None)[0]",
+    "hint": "Work inside out. Fit the factor coefficients.",
+    "explanation": [
+      {
+        "code": "lstsq(...)[0]",
+        "meaning": "Fit the factor coefficients."
+      },
+      {
+        "code": "X @ beta",
+        "meaning": "Generate in-sample fitted responses."
+      },
+      {
+        "code": "actual - fitted",
+        "meaning": "Return regression residuals aligned with observations."
+      }
+    ]
+  },
+  {
+    "id": "q-la-feature-standardize",
+    "title": "Column-standardized features",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "feature_matrix"
+    },
+    "instructions": "Return all four columns standardized to mean 0 and population standard deviation 1.",
+    "reference": "(arr - arr.mean(axis=0)) / arr.std(axis=0)",
+    "hint": "Work inside out. Compute one center and scale per feature column.",
+    "explanation": [
+      {
+        "code": "mean/std(axis=0)",
+        "meaning": "Compute one center and scale per feature column."
+      },
+      {
+        "code": "broadcast subtraction/division",
+        "meaning": "Normalize every column independently; the output keeps the original matrix dimensions."
+      }
+    ]
+  },
+  {
+    "id": "q-la-gram",
+    "title": "Feature Gram matrix",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "feature_matrix"
+    },
+    "instructions": "Return X-transpose times X for the first three feature columns.",
+    "reference": "arr[:, :3].T @ arr[:, :3]",
+    "hint": "Work inside out. Select X with n samples and 3 predictor columns.",
+    "explanation": [
+      {
+        "code": "arr[:,:3]",
+        "meaning": "Select X with n samples and 3 predictor columns."
+      },
+      {
+        "code": ".T @ X",
+        "meaning": "Take the matrix product of transposed features with features, creating a 3-by-3 Gram matrix."
+      }
+    ]
+  },
+  {
+    "id": "q-la-svd-components",
+    "title": "Leading factor direction",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "feature_matrix"
+    },
+    "instructions": "Return the first right-singular vector of the centered first three feature columns.",
+    "reference": "np.linalg.svd(arr[:, :3] - arr[:, :3].mean(axis=0), full_matrices=False)[2][0]",
+    "hint": "Work inside out. Remove the mean from each predictor before PCA-like decomposition.",
+    "explanation": [
+      {
+        "code": "center columns",
+        "meaning": "Remove the mean from each predictor before PCA-like decomposition."
+      },
+      {
+        "code": "linalg.svd(...)[2]",
+        "meaning": "Obtain V-transpose, whose rows are principal loading directions."
+      },
+      {
+        "code": "[0]",
+        "meaning": "Select the leading right-singular vector; its sign is arbitrary in theory but deterministically fixed by the solver for this target."
+      }
+    ]
+  },
+  {
+    "id": "q-la-row-norms",
+    "title": "Path feature L2 norms",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "feature_matrix"
+    },
+    "instructions": "Return the Euclidean norm of the first three feature columns for each row.",
+    "reference": "np.linalg.norm(arr[:, :3], axis=1)",
+    "hint": "Work inside out. Take three coordinates for every observation.",
+    "explanation": [
+      {
+        "code": "arr[:,:3]",
+        "meaning": "Take three coordinates for every observation."
+      },
+      {
+        "code": "norm(axis=1)",
+        "meaning": "Compute sqrt(sum(x_i²)) within each row, obtaining one norm per observation."
+      }
+    ]
+  },
+  {
+    "id": "q-la-einsum-cov",
+    "title": "Quadratic covariance contraction",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "risk_matrix"
+    },
+    "instructions": "For an equal-weight vector across assets, return its covariance quadratic form wᵀΣw as a scalar using einsum.",
+    "reference": "np.einsum(\"i,ij,j->\", np.ones(arr.shape[0])/arr.shape[0], arr, np.ones(arr.shape[0])/arr.shape[0])",
+    "hint": "Work inside out. Create equal portfolio weights across all n assets.",
+    "explanation": [
+      {
+        "code": "ones(n)/n",
+        "meaning": "Create equal portfolio weights across all n assets."
+      },
+      {
+        "code": "einsum(\"i,ij,j->\")",
+        "meaning": "Contract two weight vectors with the covariance matrix; output is a scalar portfolio variance."
+      }
+    ]
+  },
+  {
+    "id": "q-la-cholesky-factor",
+    "title": "Covariance Cholesky factor",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "risk_matrix"
+    },
+    "instructions": "Normalize covariance to correlation, then return its lower-triangular Cholesky factor.",
+    "reference": "np.linalg.cholesky(arr / np.sqrt(np.outer(np.diag(arr), np.diag(arr))))",
+    "hint": "Work inside out. Build all sigma_i*sigma_j products from diagonal covariance entries.",
+    "explanation": [
+      {
+        "code": "diag and outer",
+        "meaning": "Build all sigma_i*sigma_j products from diagonal covariance entries."
+      },
+      {
+        "code": "divide",
+        "meaning": "Form the correlation matrix by normalizing covariance values."
+      },
+      {
+        "code": "linalg.cholesky",
+        "meaning": "Factor the positive definite correlation matrix as L@L.T, useful for correlated Monte Carlo shocks."
+      }
+    ]
+  },
+  {
+    "id": "q-la-batched-take",
+    "title": "Find largest feature magnitude",
+    "category": "Linear Algebra & Arrays",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "feature_matrix"
+    },
+    "instructions": "For every row, return the value from columns 0–2 having the largest absolute magnitude, preserving the sign as a 1D array.",
+    "reference": "np.take_along_axis(arr[:, :3], np.abs(arr[:, :3]).argmax(axis=1, keepdims=True), axis=1).ravel()",
+    "hint": "Work inside out. Find the column POSITION of largest absolute feature per row; shape is (n,1).",
+    "explanation": [
+      {
+        "code": "abs(...).argmax(axis=1,keepdims=True)",
+        "meaning": "Find the column POSITION of largest absolute feature per row; shape is (n,1)."
+      },
+      {
+        "code": "take_along_axis",
+        "meaning": "Gather the ORIGINAL signed value at each row-specific position."
+      },
+      {
+        "code": "ravel()",
+        "meaning": "Flatten the n-by-1 result to the requested n-element vector."
+      }
+    ]
+  }
+]

@@ -1,0 +1,69 @@
+{
+  "name": "datagym-vscode",
+  "displayName": "DataGym",
+  "description": "Practice pandas and NumPy with live DataFrame previews in VS Code (local Python engine).",
+  "version": "0.1.0",
+  "publisher": "datagym-local",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onCommand:datagym.open"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "datagym.open",
+        "title": "DataGym: Open Trainer"
+      },
+      {
+        "command": "datagym.next",
+        "title": "DataGym: Next Exercise"
+      },
+      {
+        "command": "datagym.answer",
+        "title": "DataGym: Reveal Answer"
+      },
+      {
+        "command": "datagym.hint",
+        "title": "DataGym: Hint"
+      },
+      {
+        "command": "datagym.reset",
+        "title": "DataGym: Reset Code"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "datagym.next",
+        "key": "cmd+alt+n",
+        "mac": "cmd+alt+n",
+        "when": "editorTextFocus || webviewFocus"
+      }
+    ],
+    "configuration": {
+      "title": "DataGym",
+      "properties": {
+        "datagym.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Python interpreter path. Empty uses DataGym/.venv/bin/python on macOS/Linux or .venv/Scripts/python.exe on Windows."
+        }
+      }
+    }
+  },
+  "categories": [
+    "Education",
+    "Data Science"
+  ],
+  "keywords": [
+    "pandas",
+    "numpy",
+    "python",
+    "practice",
+    "data-science",
+    "quantitative-finance"
+  ],
+  "license": "MIT"
+}

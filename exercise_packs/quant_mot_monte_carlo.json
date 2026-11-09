@@ -1,0 +1,408 @@
+[
+  {
+    "id": "q-mot-marginal-s0",
+    "title": "Initial transport marginal",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "mot_grid"
+    },
+    "instructions": "Return the probability mass assigned to each initial support point s0, sorted ascending by s0.",
+    "reference": "df.groupby(\"s0\")[\"mass\"].sum().sort_index()",
+    "hint": "Work inside out. Collect transport couplings sharing the same first-period support point.",
+    "explanation": [
+      {
+        "code": "groupby(s0)",
+        "meaning": "Collect transport couplings sharing the same first-period support point."
+      },
+      {
+        "code": "sum(mass)",
+        "meaning": "Marginalize over all destination states s1."
+      },
+      {
+        "code": "sort_index",
+        "meaning": "Put source support in increasing price order."
+      }
+    ]
+  },
+  {
+    "id": "q-mot-marginal-s1",
+    "title": "Terminal transport marginal",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "mot_grid"
+    },
+    "instructions": "Return terminal probability masses indexed by s1, sorted by increasing terminal support price.",
+    "reference": "df.groupby(\"s1\")[\"mass\"].sum().sort_index()",
+    "hint": "Work inside out. Collect all flows arriving at each terminal support price.",
+    "explanation": [
+      {
+        "code": "groupby(s1)",
+        "meaning": "Collect all flows arriving at each terminal support price."
+      },
+      {
+        "code": "sum(mass)",
+        "meaning": "Integrate out the source support s0."
+      }
+    ]
+  },
+  {
+    "id": "q-mot-weighted-payoff",
+    "title": "Transport-plan option price",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "mot_grid"
+    },
+    "instructions": "Return the scalar expected payoff under the joint transport mass.",
+    "reference": "(df[\"mass\"] * df[\"payoff\"]).sum()",
+    "hint": "Work inside out. Weight each scenario payoff by joint probability of that source-destination pair.",
+    "explanation": [
+      {
+        "code": "mass*payoff",
+        "meaning": "Weight each scenario payoff by joint probability of that source-destination pair."
+      },
+      {
+        "code": "sum()",
+        "meaning": "Integrate over the discrete coupling to obtain the expected payoff."
+      }
+    ]
+  },
+  {
+    "id": "q-mot-coupling-matrix",
+    "title": "Coupling matrix",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "mot_grid"
+    },
+    "instructions": "Return a matrix with s0 as rows, s1 as columns and mass as each coupling cell, sorted on both support axes.",
+    "reference": "df.pivot(index=\"s0\",columns=\"s1\",values=\"mass\").sort_index().sort_index(axis=1)",
+    "hint": "Work inside out. Turn long (source,destination,mass) records into a probability matrix.",
+    "explanation": [
+      {
+        "code": "pivot",
+        "meaning": "Turn long (source,destination,mass) records into a probability matrix."
+      },
+      {
+        "code": "sort_index on axes",
+        "meaning": "Order both supports numerically; matrix row and column sums recover the marginals."
+      }
+    ]
+  },
+  {
+    "id": "q-mot-conditional-target",
+    "title": "Conditional terminal expectation",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "mot_grid"
+    },
+    "instructions": "For every s0, calculate E[S1 | S0=s0] under the (possibly nonmartingale) coupling as a Series.",
+    "reference": "df.assign(mass_s1=df[\"mass\"]*df[\"s1\"]).groupby(\"s0\")[[\"mass_s1\",\"mass\"]].sum().eval(\"mass_s1 / mass\")",
+    "hint": "Work inside out. Compute the weighted terminal contribution for every coupling cell.",
+    "explanation": [
+      {
+        "code": "assign(mass*s1)",
+        "meaning": "Compute the weighted terminal contribution for every coupling cell."
+      },
+      {
+        "code": "groupby(s0).sum()",
+        "meaning": "Create numerator and row-marginal denominator for each source support point."
+      },
+      {
+        "code": "eval(numerator/denominator)",
+        "meaning": "Calculate conditional expectation. Compare with s0 to diagnose martingale violation."
+      }
+    ]
+  },
+  {
+    "id": "q-mot-martingale-residual",
+    "title": "Martingale constraint residual",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "mot_grid"
+    },
+    "instructions": "Return the weighted martingale residual per source support: sum(mass*(s1-s0)) grouped by s0.",
+    "reference": "df.assign(residual=df[\"mass\"] * (df[\"s1\"]-df[\"s0\"])).groupby(\"s0\")[\"residual\"].sum()",
+    "hint": "Work inside out. Compute the price change associated with each coupling pair.",
+    "explanation": [
+      {
+        "code": "s1-s0",
+        "meaning": "Compute the price change associated with each coupling pair."
+      },
+      {
+        "code": "multiply by mass",
+        "meaning": "Weight each move by its joint probability."
+      },
+      {
+        "code": "groupby(s0).sum()",
+        "meaning": "Check the martingale constraint for every initial support; target residual is zero in a true martingale coupling."
+      }
+    ]
+  },
+  {
+    "id": "q-mot-total-negative-mass",
+    "title": "Negative coupling diagnosis",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "mot_grid"
+    },
+    "instructions": "Return the scalar total magnitude of negative probability entries (should be zero for this valid synthetic mass).",
+    "reference": "df[\"mass\"].clip(upper=0).abs().sum()",
+    "hint": "Work inside out. Keep only negative values and replace positive masses by zero.",
+    "explanation": [
+      {
+        "code": "clip(upper=0)",
+        "meaning": "Keep only negative values and replace positive masses by zero."
+      },
+      {
+        "code": "abs().sum()",
+        "meaning": "Sum the magnitude of invalid negative probability, yielding a scalar diagnostic."
+      }
+    ]
+  },
+  {
+    "id": "q-mot-normalized-price",
+    "title": "Normalize expected transport payoff",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "mot_grid"
+    },
+    "instructions": "Return expected payoff per unit of total joint mass as a scalar, guarding against rounding of mass.",
+    "reference": "(df[\"mass\"] * df[\"payoff\"]).sum() / df[\"mass\"].sum()",
+    "hint": "Work inside out. Compute total probability-weighted payoff.",
+    "explanation": [
+      {
+        "code": "sum(mass*payoff)",
+        "meaning": "Compute total probability-weighted payoff."
+      },
+      {
+        "code": "sum(mass)",
+        "meaning": "Measure total stored mass, which can differ minutely from 1 after rounding."
+      },
+      {
+        "code": "divide",
+        "meaning": "Return normalized expectation."
+      }
+    ]
+  },
+  {
+    "id": "q-mc-terminal-gains",
+    "title": "Monte Carlo terminal simple returns",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "sim_paths"
+    },
+    "instructions": "Return terminal price divided by initial price minus one, for each simulated path.",
+    "reference": "arr[:, -1] / arr[:, 0] - 1",
+    "hint": "Work inside out. Extract terminal and starting price from every simulated path as two 1D vectors.",
+    "explanation": [
+      {
+        "code": "arr[:,-1] and arr[:,0]",
+        "meaning": "Extract terminal and starting price from every simulated path as two 1D vectors."
+      },
+      {
+        "code": "division -1",
+        "meaning": "Calculate path-level simple total returns."
+      }
+    ]
+  },
+  {
+    "id": "q-mc-path-drawdown",
+    "title": "Per-path maximum drawdown",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "sim_paths"
+    },
+    "instructions": "Return the maximum drawdown per simulation path as a negative-valued 1D array.",
+    "reference": "(arr / np.maximum.accumulate(arr, axis=1) - 1).min(axis=1)",
+    "hint": "Work inside out. Compute running peak within EACH simulated path, from left to right across time.",
+    "explanation": [
+      {
+        "code": "np.maximum.accumulate(axis=1)",
+        "meaning": "Compute running peak within EACH simulated path, from left to right across time."
+      },
+      {
+        "code": "arr / peak - 1",
+        "meaning": "Find drawdown at every path-time cell."
+      },
+      {
+        "code": "min(axis=1)",
+        "meaning": "Take the worst drawdown for each path."
+      }
+    ]
+  },
+  {
+    "id": "q-mc-asian-payoff",
+    "title": "Arithmetic Asian call payoff",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "sim_paths"
+    },
+    "instructions": "For each simulated path, return max(average price across time - {strike}, 0) as a 1D array.",
+    "reference": "np.maximum(arr.mean(axis=1) - {strike}, 0)",
+    "hint": "Work inside out. Collapse the time axis into one average price per simulated path.",
+    "explanation": [
+      {
+        "code": "mean(axis=1)",
+        "meaning": "Collapse the time axis into one average price per simulated path."
+      },
+      {
+        "code": "subtract strike",
+        "meaning": "Compute average-price intrinsic value."
+      },
+      {
+        "code": "maximum(...,0)",
+        "meaning": "Apply the call option payoff floor."
+      }
+    ],
+    "parameters": {
+      "strike": {
+        "choices": [
+          95,
+          100,
+          105
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-mc-barrier-hit",
+    "title": "Barrier first-passage indicator",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "sim_paths"
+    },
+    "instructions": "Return a Boolean vector indicating which simulated paths EVER traded at or above {barrier}.",
+    "reference": "(arr >= {barrier}).any(axis=1)",
+    "hint": "Work inside out. Create a Boolean matrix showing when each path crosses the barrier.",
+    "explanation": [
+      {
+        "code": "arr >= barrier",
+        "meaning": "Create a Boolean matrix showing when each path crosses the barrier."
+      },
+      {
+        "code": "any(axis=1)",
+        "meaning": "Reduce across time, producing one Boolean flag per simulated path."
+      }
+    ],
+    "parameters": {
+      "barrier": {
+        "choices": [
+          100,
+          103,
+          106
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-mc-step-logreturns",
+    "title": "Simulated log-return increments",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "sim_paths"
+    },
+    "instructions": "Return a matrix of adjacent log-price increments for all paths.",
+    "reference": "np.diff(np.log(arr), axis=1)",
+    "hint": "Work inside out. Convert simulated positive prices to log prices.",
+    "explanation": [
+      {
+        "code": "np.log(arr)",
+        "meaning": "Convert simulated positive prices to log prices."
+      },
+      {
+        "code": "np.diff(axis=1)",
+        "meaning": "Subtract adjacent time points within each path, yielding one fewer time column."
+      }
+    ]
+  },
+  {
+    "id": "q-mc-quantile-wealth",
+    "title": "Cross-path tail wealth",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "sim_paths"
+    },
+    "instructions": "Normalize every simulated path by its starting price, then return the 10th percentile normalized wealth at each time step.",
+    "reference": "np.quantile(arr / arr[:, [0]], 0.1, axis=0)",
+    "hint": "Work inside out. Extract the starting price of each path while retaining a second dimension for broadcasting.",
+    "explanation": [
+      {
+        "code": "arr[:,[0]]",
+        "meaning": "Extract the starting price of each path while retaining a second dimension for broadcasting."
+      },
+      {
+        "code": "arr / initial",
+        "meaning": "Normalize path prices within each row, producing wealth starting at 1."
+      },
+      {
+        "code": "quantile(axis=0)",
+        "meaning": "Collapse the path axis and return a 1D tail-wealth curve across time."
+      }
+    ]
+  },
+  {
+    "id": "q-mc-trapezoid-asian",
+    "title": "Trapezoidal path-average payoff",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "sim_paths"
+    },
+    "instructions": "For each path, compute the time average by trapezoidal integration over equally spaced steps, then return max(average-100,0).",
+    "reference": "np.maximum((arr[:, :-1]+arr[:, 1:]).sum(axis=1)/(2*(arr.shape[1]-1))-100,0)",
+    "hint": "Work inside out. Pair each adjacent price on every path; this creates trapezoid endpoint sums.",
+    "explanation": [
+      {
+        "code": "arr[:,:-1] + arr[:,1:]",
+        "meaning": "Pair each adjacent price on every path; this creates trapezoid endpoint sums."
+      },
+      {
+        "code": "sum(axis=1)/(2*(T-1))",
+        "meaning": "Compute equal-time-step trapezoidal average over all intervals, with endpoint weights half of interior weights."
+      },
+      {
+        "code": "maximum(...-100,0)",
+        "meaning": "Apply the arithmetic Asian call payoff."
+      }
+    ]
+  },
+  {
+    "id": "q-mot-support-probability",
+    "title": "Conditional probability matrix",
+    "category": "MOT & Monte Carlo",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "mot_grid"
+    },
+    "instructions": "Return the transport coupling probability matrix normalized by each source-state row marginal, indexed by source and terminal supports.",
+    "reference": "df.pivot(index=\"s0\",columns=\"s1\",values=\"mass\").pipe(lambda x: x.div(x.sum(axis=1),axis=0))",
+    "hint": "Work inside out. Turn coupling records into source-by-destination joint mass.",
+    "explanation": [
+      {
+        "code": "pivot",
+        "meaning": "Turn coupling records into source-by-destination joint mass."
+      },
+      {
+        "code": "sum(axis=1)",
+        "meaning": "Compute each source marginal probability."
+      },
+      {
+        "code": "div(...,axis=0)",
+        "meaning": "Divide each row by its own marginal to get conditional terminal probabilities; each row sums to 1."
+      }
+    ]
+  }
+]

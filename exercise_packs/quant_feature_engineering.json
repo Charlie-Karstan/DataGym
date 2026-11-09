@@ -1,0 +1,347 @@
+[
+  {
+    "id": "q-panel-liquidity-rank",
+    "title": "Liquidity percentile by session",
+    "category": "Feature Engineering",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "For every trading day, append a new column liq_pct with the percentile rank of volume within that same day.",
+    "reference": "df.assign(liq_pct=df.groupby(\"date\")[\"volume\"].rank(pct=True))",
+    "hint": "Work inside out. Rank tickers only against other tickers on the same day, and express rank on the 0–1 percentile scale.",
+    "explanation": [
+      {
+        "code": "groupby(\"date\")[\"volume\"].rank(pct=True)",
+        "meaning": "Rank tickers only against other tickers on the same day, and express rank on the 0–1 percentile scale."
+      },
+      {
+        "code": "assign(liq_pct=...)",
+        "meaning": "Attach one percentile to each original row, preserving the long panel."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-demean-returns",
+    "title": "Cross-sectional residual returns",
+    "category": "Feature Engineering",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Return a Series of each asset return minus the mean return of assets traded on the same date.",
+    "reference": "df[\"ret\"] - df.groupby(\"date\")[\"ret\"].transform(\"mean\")",
+    "hint": "Work inside out. Broadcast the per-date average back to every row on that date; transform preserves the original row count.",
+    "explanation": [
+      {
+        "code": "groupby(...).transform(\"mean\")",
+        "meaning": "Broadcast the per-date average back to every row on that date; transform preserves the original row count."
+      },
+      {
+        "code": "df[\"ret\"] - ...",
+        "meaning": "Subtract the contemporaneous cross-sectional mean from each observation."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-sector-demean",
+    "title": "Sector-neutral residual returns",
+    "category": "Feature Engineering",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Return returns after removing each date-and-sector mean return, preserving the original row order.",
+    "reference": "df[\"ret\"] - df.groupby([\"date\", \"sector\"])[\"ret\"].transform(\"mean\")",
+    "hint": "Work inside out. Form groups specific to each session AND sector; the same sector on another date is a different group.",
+    "explanation": [
+      {
+        "code": "groupby([date, sector])",
+        "meaning": "Form groups specific to each session AND sector; the same sector on another date is a different group."
+      },
+      {
+        "code": "transform(\"mean\")",
+        "meaning": "Align each group mean back with the original rows."
+      },
+      {
+        "code": "subtract",
+        "meaning": "Create residual returns with no inadvertent reordering."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-returns-buckets",
+    "title": "Cross-sectional trade candidates",
+    "category": "Feature Engineering",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "For each date, retain only the two highest-volume tickers; return date, ticker and volume sorted by date and descending volume.",
+    "reference": "df.sort_values([\"date\", \"volume\"], ascending=[True, False]).groupby(\"date\", sort=False).head(2)[[\"date\", \"ticker\", \"volume\"]]",
+    "hint": "Work inside out. Put each day in order and move the most liquid stocks first within its day.",
+    "explanation": [
+      {
+        "code": "sort_values([date,volume])",
+        "meaning": "Put each day in order and move the most liquid stocks first within its day."
+      },
+      {
+        "code": "groupby(\"date\").head(2)",
+        "meaning": "Select two rows FROM EACH DATE, not just two rows in total."
+      },
+      {
+        "code": "[[...]]",
+        "meaning": "Project only the requested columns."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-normalize-risk",
+    "title": "Normalize factor exposures",
+    "category": "Feature Engineering",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Return a Series of beta divided by its date-level mean beta (one normalized exposure per row).",
+    "reference": "df[\"beta\"] / df.groupby(\"date\")[\"beta\"].transform(\"mean\")",
+    "hint": "Work inside out. Replicate the average beta for each date alongside every asset exposure.",
+    "explanation": [
+      {
+        "code": "groupby(date).transform(mean)",
+        "meaning": "Replicate the average beta for each date alongside every asset exposure."
+      },
+      {
+        "code": "division",
+        "meaning": "Normalize each asset by its own date benchmark, without a loop."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-vector-notional",
+    "title": "Dollar-volume feature matrix",
+    "category": "Feature Engineering",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Compute close × volume for each record, pivot into dates × tickers, and sort the columns alphabetically.",
+    "reference": "df.assign(dollar_volume=df[\"close\"] * df[\"volume\"]).pivot(index=\"date\", columns=\"ticker\", values=\"dollar_volume\").sort_index(axis=1)",
+    "hint": "Work inside out. Multiply price and quantity row-by-row to build a turnover proxy.",
+    "explanation": [
+      {
+        "code": "assign",
+        "meaning": "Multiply price and quantity row-by-row to build a turnover proxy."
+      },
+      {
+        "code": "pivot",
+        "meaning": "Make a date-by-ticker feature matrix from the long panel."
+      },
+      {
+        "code": "sort_index(axis=1)",
+        "meaning": "Sort ticker columns, leaving date rows intact."
+      }
+    ]
+  },
+  {
+    "id": "q-xi-feature-zscore",
+    "title": "Standardized latent-state signal",
+    "category": "Feature Engineering",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Return a Series of the signal standardized using its entire sample mean and population standard deviation.",
+    "reference": "(df[\"signal\"] - df[\"signal\"].mean()) / df[\"signal\"].std(ddof=0)",
+    "hint": "Work inside out. Compute the scalar signal center.",
+    "explanation": [
+      {
+        "code": "mean()",
+        "meaning": "Compute the scalar signal center."
+      },
+      {
+        "code": "std(ddof=0)",
+        "meaning": "Use population standard deviation (not pandas default ddof=1)."
+      },
+      {
+        "code": "vector arithmetic",
+        "meaning": "Subtract center and divide scale at every date. This full-sample version is descriptive, NOT safe for live trading."
+      }
+    ]
+  },
+  {
+    "id": "q-xi-causal-zscore",
+    "title": "Causal z-score feature",
+    "category": "Feature Engineering",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Return signal minus its previous 5-day mean, divided by its previous 5-day std; use at least 3 earlier observations.",
+    "reference": "(df[\"signal\"] - df[\"signal\"].shift(1).rolling(5, min_periods=3).mean()) / df[\"signal\"].shift(1).rolling(5, min_periods=3).std()",
+    "hint": "Work inside out. Make historical window end at yesterday, avoiding current-day information leakage.",
+    "explanation": [
+      {
+        "code": "shift(1)",
+        "meaning": "Make historical window end at yesterday, avoiding current-day information leakage."
+      },
+      {
+        "code": "rolling(5,min_periods=3)",
+        "meaning": "Form trailing windows, requiring three past observations."
+      },
+      {
+        "code": "mean / std",
+        "meaning": "Measure current signal relative to a strictly historical distribution."
+      }
+    ]
+  },
+  {
+    "id": "q-xi-conditional-forecast",
+    "title": "Regime-weighted forecast",
+    "category": "Feature Engineering",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Return a Series of probability-weighted forecasts, treating the stress-regime forecast as -0.5 × forecast.",
+    "reference": "df[\"p_risk\"] * df[\"forecast\"] + df[\"p_stress\"] * (-0.5 * df[\"forecast\"])",
+    "hint": "Work inside out. Probabilities form the time-dependent mixture weights.",
+    "explanation": [
+      {
+        "code": "p_risk and p_stress",
+        "meaning": "Probabilities form the time-dependent mixture weights."
+      },
+      {
+        "code": "weighted sum",
+        "meaning": "Combine one optimistic forecast and a scaled defensive forecast elementwise across dates."
+      }
+    ]
+  },
+  {
+    "id": "q-xi-clip-and-lag",
+    "title": "Bounded trading signal",
+    "category": "Feature Engineering",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Cap the signal at ±{cap}, then lag it by one session to construct next-day usable exposure.",
+    "reference": "df[\"signal\"].clip(lower=-{cap}, upper={cap}).shift(1)",
+    "hint": "Work inside out. Limit extreme exposure before execution.",
+    "explanation": [
+      {
+        "code": "clip",
+        "meaning": "Limit extreme exposure before execution."
+      },
+      {
+        "code": "shift(1)",
+        "meaning": "At row t, show the signal that was known at t−1, not the signal computed at t."
+      }
+    ],
+    "parameters": {
+      "cap": {
+        "choices": [
+          0.5,
+          0.8,
+          1.2
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-stocks-categorical-onehot",
+    "title": "Encode sector membership",
+    "category": "Feature Engineering",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "stocks"
+    },
+    "instructions": "Return a one-hot Boolean DataFrame of sectors with columns sorted alphabetically.",
+    "reference": "pd.get_dummies(df[\"sector\"]).sort_index(axis=1)",
+    "hint": "Work inside out. Convert one categorical sector per stock into indicator columns.",
+    "explanation": [
+      {
+        "code": "get_dummies",
+        "meaning": "Convert one categorical sector per stock into indicator columns."
+      },
+      {
+        "code": "sort_index(axis=1)",
+        "meaning": "Make the feature column order deterministic for downstream models."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-date-crosssection",
+    "title": "Cross-sectional return rank matrix",
+    "category": "Feature Engineering",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Rank returns by date, with rank 1 for the highest return, then pivot into dates × tickers.",
+    "reference": "df.assign(rank=df.groupby(\"date\")[\"ret\"].rank(ascending=False, method=\"min\")).pivot(index=\"date\", columns=\"ticker\", values=\"rank\")",
+    "hint": "Work inside out. Rank within each date; larger returns receive smaller ranks.",
+    "explanation": [
+      {
+        "code": "groupby(date).rank",
+        "meaning": "Rank within each date; larger returns receive smaller ranks."
+      },
+      {
+        "code": "assign",
+        "meaning": "Attach ranks to the long panel without losing other columns."
+      },
+      {
+        "code": "pivot",
+        "meaning": "Turn the normalized feature into a time-by-asset matrix."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-market-neutral-score",
+    "title": "Rank normalized daily signals",
+    "category": "Feature Engineering",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Within each date, calculate demeaned returns and then rank them descending within date as a Series, with rank 1 best.",
+    "reference": "(df[\"ret\"] - df.groupby(\"date\")[\"ret\"].transform(\"mean\")).groupby(df[\"date\"]).rank(ascending=False, method=\"min\")",
+    "hint": "Work inside out. Demean returns independently for each trading day, preserving original row alignment.",
+    "explanation": [
+      {
+        "code": "transform(mean)",
+        "meaning": "Demean returns independently for each trading day, preserving original row alignment."
+      },
+      {
+        "code": "groupby(df[date]).rank",
+        "meaning": "Rank the cross-sectional residuals within their own date, not globally."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-trade-sector-filter",
+    "title": "Sector-neutral liquidity filter",
+    "category": "Feature Engineering",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Return ticker, date, ret, volume for Tech-sector records with volume above their SAME-DATE sector average.",
+    "reference": "df.loc[df[\"sector\"].eq(\"Tech\") & df[\"volume\"].gt(df.groupby([\"date\",\"sector\"])[\"volume\"].transform(\"mean\")), [\"ticker\",\"date\",\"ret\",\"volume\"]]",
+    "hint": "Work inside out. Compute a sector-relative daily volume benchmark aligned with every observation.",
+    "explanation": [
+      {
+        "code": "groupby([date,sector]).transform(mean)",
+        "meaning": "Compute a sector-relative daily volume benchmark aligned with every observation."
+      },
+      {
+        "code": "eq(Tech) & gt(mean)",
+        "meaning": "Require Tech classification and unusually high volume together."
+      },
+      {
+        "code": "loc projection",
+        "meaning": "Return only selected trade candidate fields."
+      }
+    ]
+  }
+]

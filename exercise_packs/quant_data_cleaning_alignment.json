@@ -1,0 +1,429 @@
+[
+  {
+    "id": "q-prices-ge-filter",
+    "title": "Exclude illiquid prices",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 2,
+    "dataset": {
+      "kind": "stocks"
+    },
+    "instructions": "Return ticker prices where volume is at least {minvol} and price is strictly greater than {minprice}, sorted by price descending.",
+    "reference": "df.loc[df[\"volume\"].ge({minvol}) & df[\"price\"].gt({minprice}), [\"price\", \"volume\"]].sort_values(\"price\", ascending=False)",
+    "hint": "Work inside out. Each comparison builds one Boolean per ticker, inclusive for ge and exclusive for gt.",
+    "explanation": [
+      {
+        "code": "ge / gt",
+        "meaning": "Each comparison builds one Boolean per ticker, inclusive for ge and exclusive for gt."
+      },
+      {
+        "code": "&",
+        "meaning": "Keep rows satisfying BOTH checks."
+      },
+      {
+        "code": ".loc + .sort_values",
+        "meaning": "Extract the two columns and then rank surviving names by price."
+      }
+    ],
+    "parameters": {
+      "minvol": {
+        "choices": [
+          150,
+          300,
+          450
+        ]
+      },
+      "minprice": {
+        "choices": [
+          70,
+          150,
+          220
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-stocks-index-sort",
+    "title": "Ticker lookup table",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 2,
+    "dataset": {
+      "kind": "trades"
+    },
+    "instructions": "Create one row per symbol with its total quantity, indexed by ticker and ordered alphabetically.",
+    "reference": "df.groupby(\"symbol\", as_index=False)[\"qty\"].sum().set_index(\"symbol\").sort_index()",
+    "hint": "Work inside out. Collapse all trade records for each ticker into one quantity total.",
+    "explanation": [
+      {
+        "code": "groupby + sum",
+        "meaning": "Collapse all trade records for each ticker into one quantity total."
+      },
+      {
+        "code": "set_index(\"symbol\")",
+        "meaning": "Convert the ticker column into the semantic row index."
+      },
+      {
+        "code": "sort_index()",
+        "meaning": "Sort by ticker label, not by the total quantity."
+      }
+    ]
+  },
+  {
+    "id": "q-price-fill-forward",
+    "title": "Repair a price feed",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "price_panel"
+    },
+    "instructions": "Forward-fill missing prices, then return the most recent 6 observation rows.",
+    "reference": "df.ffill().tail(6)",
+    "hint": "Work inside out. Fill each missing entry using the most recent earlier price in that asset. This is causal; bfill would import future data.",
+    "explanation": [
+      {
+        "code": "ffill()",
+        "meaning": "Fill each missing entry using the most recent earlier price in that asset. This is causal; bfill would import future data."
+      },
+      {
+        "code": "tail(6)",
+        "meaning": "Keep the final six dates after filling the gaps."
+      }
+    ]
+  },
+  {
+    "id": "q-price-return-no-fill",
+    "title": "Price returns without hidden fills",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "price_panel"
+    },
+    "instructions": "Calculate simple asset returns from prices without implicitly filling missing observations. Drop dates containing any missing return.",
+    "reference": "df.pct_change(fill_method=None).dropna(how=\"any\")",
+    "hint": "Work inside out. For each asset compute P_t/P_(t-1)-1; leaving missing prices missing avoids artificial zero-return observations.",
+    "explanation": [
+      {
+        "code": "pct_change(fill_method=None)",
+        "meaning": "For each asset compute P_t/P_(t-1)-1; leaving missing prices missing avoids artificial zero-return observations."
+      },
+      {
+        "code": "dropna(how=\"any\")",
+        "meaning": "Delete dates without a complete cross-sectional return vector."
+      }
+    ]
+  },
+  {
+    "id": "q-price-nonmissing-count",
+    "title": "Data completeness report",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 2,
+    "dataset": {
+      "kind": "price_panel"
+    },
+    "instructions": "Return a descending Series of non-missing price observations for each asset.",
+    "reference": "df.count().sort_values(ascending=False)",
+    "hint": "Work inside out. Count valid time points independently in each column, ignoring NaNs.",
+    "explanation": [
+      {
+        "code": "count()",
+        "meaning": "Count valid time points independently in each column, ignoring NaNs."
+      },
+      {
+        "code": "sort_values()",
+        "meaning": "Place assets with the strongest history first."
+      }
+    ]
+  },
+  {
+    "id": "q-price-availability-mask",
+    "title": "Find incomplete histories",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 2,
+    "dataset": {
+      "kind": "price_panel"
+    },
+    "instructions": "Return a Boolean DataFrame identifying missing-price cells, but only for dates on which at least one price is missing.",
+    "reference": "df.isna().loc[lambda m: m.any(axis=1)]",
+    "hint": "Work inside out. Build one Boolean per date and asset, true exactly when an observation is missing.",
+    "explanation": [
+      {
+        "code": "isna()",
+        "meaning": "Build one Boolean per date and asset, true exactly when an observation is missing."
+      },
+      {
+        "code": "any(axis=1)",
+        "meaning": "For each date, test whether at least one of its assets is missing."
+      },
+      {
+        "code": "loc[lambda m: ...]",
+        "meaning": "Use that date-level mask to keep only rows with incomplete cross-sectional data."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-set-index",
+    "title": "MultiIndex research panel",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Index the panel by date then ticker, sort both levels, and return only ret and volume columns.",
+    "reference": "df.set_index([\"date\", \"ticker\"]).sort_index()[[\"ret\", \"volume\"]]",
+    "hint": "Work inside out. Convert two columns into a hierarchical index so every (date,ticker) pair is an address.",
+    "explanation": [
+      {
+        "code": "set_index([\"date\", \"ticker\"])",
+        "meaning": "Convert two columns into a hierarchical index so every (date,ticker) pair is an address."
+      },
+      {
+        "code": "sort_index()",
+        "meaning": "Sort both index levels, enabling predictable date/ticker slicing."
+      },
+      {
+        "code": "[[...]]",
+        "meaning": "Keep only measured return and volume, without losing the MultiIndex."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-xs-name",
+    "title": "Instrument history from a panel",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Return AAPL date-by-date close and return as a two-column DataFrame, indexed by date.",
+    "reference": "df.set_index([\"date\", \"ticker\"]).xs(\"AAPL\", level=\"ticker\")[[\"close\", \"ret\"]]",
+    "hint": "Work inside out. Give date and ticker index levels distinct meanings.",
+    "explanation": [
+      {
+        "code": "set_index",
+        "meaning": "Give date and ticker index levels distinct meanings."
+      },
+      {
+        "code": "xs(\"AAPL\", level=\"ticker\")",
+        "meaning": "Cross-section the ticker dimension, leaving only the date index."
+      },
+      {
+        "code": "[[\"close\", \"ret\"]]",
+        "meaning": "Retain both requested series in a DataFrame."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-reindex-grid",
+    "title": "Restore canonical ticker order",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Create a date-by-ticker close-price matrix whose columns appear in the order JPM, NVDA, MSFT, AAPL.",
+    "reference": "df.pivot(index=\"date\", columns=\"ticker\", values=\"close\").reindex(columns=[\"JPM\", \"NVDA\", \"MSFT\", \"AAPL\"])",
+    "hint": "Work inside out. Turn long (date,ticker) rows into a two-axis price matrix.",
+    "explanation": [
+      {
+        "code": "pivot",
+        "meaning": "Turn long (date,ticker) rows into a two-axis price matrix."
+      },
+      {
+        "code": "reindex(columns=...)",
+        "meaning": "Rearrange columns by the desired economic order, not alphabetically; absent labels would introduce NaNs."
+      }
+    ]
+  },
+  {
+    "id": "q-prices-same-day-bounds",
+    "title": "Outlier clipping",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Cap each signal at -{cap} and +{cap}, then return only days whose capped signal is strictly positive.",
+    "reference": "df[\"signal\"].clip(-{cap}, {cap}).loc[lambda s: s.gt(0)]",
+    "hint": "Work inside out. Apply symmetric limits to each signal without changing its index.",
+    "explanation": [
+      {
+        "code": "clip",
+        "meaning": "Apply symmetric limits to each signal without changing its index."
+      },
+      {
+        "code": "loc[lambda s: s.gt(0)]",
+        "meaning": "Build the Boolean mask on the clipped Series itself; lambda passes the current object into the selection."
+      }
+    ],
+    "parameters": {
+      "cap": {
+        "choices": [
+          0.5,
+          0.8,
+          1.0
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-panel-query-volume",
+    "title": "Screen a long panel",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 2,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "From Tech names with volume >= {minimum}, keep date, ticker, volume and sort within date by ticker.",
+    "reference": "df.query(\"sector == 'Tech' and volume >= {minimum}\")[[\"date\", \"ticker\", \"volume\"]].sort_values([\"date\", \"ticker\"])",
+    "hint": "Work inside out. Evaluate a row filter using column names directly, producing an index-aligned subset.",
+    "explanation": [
+      {
+        "code": "query",
+        "meaning": "Evaluate a row filter using column names directly, producing an index-aligned subset."
+      },
+      {
+        "code": "[[...]]",
+        "meaning": "Project only the requested columns."
+      },
+      {
+        "code": "sort_values([...])",
+        "meaning": "Sort first by date and then by ticker inside each date."
+      }
+    ],
+    "parameters": {
+      "minimum": {
+        "choices": [
+          200,
+          350,
+          500
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-stocks-where",
+    "title": "Keep only valid returns",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "stocks"
+    },
+    "instructions": "Return the daily return Series, setting returns of stocks with volume below {minimum} to NaN instead of dropping tickers.",
+    "reference": "df[\"return_1d\"].where(df[\"volume\"].ge({minimum}))",
+    "hint": "Work inside out. Retain each return where its ticker passes the volume test. Rows that fail become NaN; the index stays unchanged.",
+    "explanation": [
+      {
+        "code": "where(mask)",
+        "meaning": "Retain each return where its ticker passes the volume test. Rows that fail become NaN; the index stays unchanged."
+      },
+      {
+        "code": "ge({minimum})",
+        "meaning": "Inclusive comparison constructs the condition using a different column."
+      }
+    ],
+    "parameters": {
+      "minimum": {
+        "choices": [
+          200,
+          350,
+          500
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-asset-merge-metadata",
+    "title": "Join asset volume to ticker metadata",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "asset_panel"
+    },
+    "instructions": "Build one row per ticker with its sector and total traded volume, indexed and sorted by ticker.",
+    "reference": "df[[\"ticker\",\"sector\"]].drop_duplicates().merge(df.groupby(\"ticker\",as_index=False)[\"volume\"].sum(),on=\"ticker\",validate=\"one_to_one\").set_index(\"ticker\").sort_index()",
+    "hint": "Work inside out. Build a unique ticker-to-sector metadata table.",
+    "explanation": [
+      {
+        "code": "drop_duplicates",
+        "meaning": "Build a unique ticker-to-sector metadata table."
+      },
+      {
+        "code": "groupby + sum",
+        "meaning": "Build a second table of total asset volumes."
+      },
+      {
+        "code": "merge(...,validate=one_to_one)",
+        "meaning": "Join two unique key tables; validate prevents accidental row multiplication."
+      },
+      {
+        "code": "set_index",
+        "meaning": "Use ticker labels as the final semantic index."
+      }
+    ]
+  },
+  {
+    "id": "q-price-pair-fallback",
+    "title": "Fallback quote source",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "price_panel"
+    },
+    "instructions": "For each date, return MSFT price if present, otherwise AAPL price, as a date-indexed Series.",
+    "reference": "df[\"MSFT\"].combine_first(df[\"AAPL\"])",
+    "hint": "Work inside out. Keep primary MSFT quotes unless missing, then take the aligned AAPL value as fallback.",
+    "explanation": [
+      {
+        "code": "combine_first",
+        "meaning": "Keep primary MSFT quotes unless missing, then take the aligned AAPL value as fallback."
+      },
+      {
+        "code": "alignment",
+        "meaning": "Series are matched by date index, NOT by bare array position."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-reshape-melt",
+    "title": "Convert returns matrix to long panel",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "returns"
+    },
+    "instructions": "Transform date-indexed asset return matrix into a long DataFrame with date, ticker and ret columns.",
+    "reference": "df.reset_index().melt(id_vars=\"date\",var_name=\"ticker\",value_name=\"ret\")",
+    "hint": "Work inside out. Restore date as a normal column rather than an index label.",
+    "explanation": [
+      {
+        "code": "reset_index",
+        "meaning": "Restore date as a normal column rather than an index label."
+      },
+      {
+        "code": "melt(id_vars=date)",
+        "meaning": "Unpivot four asset columns into ticker labels and ret values, yielding one row per date/asset pair."
+      }
+    ]
+  },
+  {
+    "id": "q-panel-unstack-returns",
+    "title": "Stack/unstack round trip",
+    "category": "Data Cleaning & Alignment",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "returns"
+    },
+    "instructions": "Stack the return matrix into a date-and-ticker MultiIndex Series and unstack it back into a DataFrame with original column order.",
+    "reference": "df.stack().unstack()",
+    "hint": "Work inside out. Move the asset column axis into a second level of the row index.",
+    "explanation": [
+      {
+        "code": "stack",
+        "meaning": "Move the asset column axis into a second level of the row index."
+      },
+      {
+        "code": "unstack",
+        "meaning": "Move that ticker index level back into columns; the result is again a date-by-asset DataFrame."
+      }
+    ]
+  }
+]

@@ -1,0 +1,358 @@
+[
+  {
+    "id": "q-returns-rolling-vol",
+    "title": "Rolling realized volatility",
+    "category": "Time Series & Risk",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "returns",
+      "rows": 18
+    },
+    "instructions": "Return 5-session rolling sample volatility annualized by sqrt(252) for every asset.",
+    "reference": "df.rolling(5).std() * np.sqrt(252)",
+    "hint": "Work inside out. For each asset and date, compute sample standard deviation over its trailing five observations.",
+    "explanation": [
+      {
+        "code": "rolling(5).std()",
+        "meaning": "For each asset and date, compute sample standard deviation over its trailing five observations."
+      },
+      {
+        "code": "sqrt(252)",
+        "meaning": "Annualize the daily standard deviation assuming 252 trading days and square-root-of-time scaling."
+      }
+    ]
+  },
+  {
+    "id": "q-returns-ewma-risk",
+    "title": "EWMA risk monitor",
+    "category": "Time Series & Risk",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "returns",
+      "rows": 18
+    },
+    "instructions": "Return exponentially weighted daily return volatility for all assets, with span {span} and adjust=False.",
+    "reference": "df.ewm(span={span}, adjust=False).std()",
+    "hint": "Work inside out. Assign exponentially declining weight to older observations.",
+    "explanation": [
+      {
+        "code": "ewm(span={span})",
+        "meaning": "Assign exponentially declining weight to older observations."
+      },
+      {
+        "code": "adjust=False",
+        "meaning": "Use the recursive filter representation."
+      },
+      {
+        "code": "std()",
+        "meaning": "Estimate exponentially weighted standard deviation for each asset."
+      }
+    ],
+    "parameters": {
+      "span": {
+        "choices": [
+          4,
+          6,
+          8
+        ]
+      }
+    }
+  },
+  {
+    "id": "q-returns-pair-cov",
+    "title": "Rolling pairwise covariance",
+    "category": "Time Series & Risk",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "returns",
+      "rows": 18
+    },
+    "instructions": "Return a Series of 5-day rolling sample covariance between AAPL and MSFT.",
+    "reference": "df[\"AAPL\"].rolling(5).cov(df[\"MSFT\"])",
+    "hint": "Work inside out. Create consecutive windows in AAPL returns.",
+    "explanation": [
+      {
+        "code": "df[\"AAPL\"].rolling(5)",
+        "meaning": "Create consecutive windows in AAPL returns."
+      },
+      {
+        "code": "cov(df[\"MSFT\"])",
+        "meaning": "Use MSFT over the aligned dates to obtain one covariance per window."
+      }
+    ]
+  },
+  {
+    "id": "q-returns-beta",
+    "title": "Rolling market beta",
+    "category": "Time Series & Risk",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "returns",
+      "rows": 18
+    },
+    "instructions": "Calculate rolling 6-day beta of NVDA versus AAPL, as covariance divided by the rolling variance of AAPL.",
+    "reference": "df[\"NVDA\"].rolling(6).cov(df[\"AAPL\"]) / df[\"AAPL\"].rolling(6).var()",
+    "hint": "Work inside out. Estimate the rolling numerator Cov(NVDA,AAPL) using aligned windows.",
+    "explanation": [
+      {
+        "code": "rolling(6).cov",
+        "meaning": "Estimate the rolling numerator Cov(NVDA,AAPL) using aligned windows."
+      },
+      {
+        "code": "rolling(6).var",
+        "meaning": "Estimate Var(AAPL) over the same windows."
+      },
+      {
+        "code": "division",
+        "meaning": "Beta is covariance with the benchmark divided by benchmark variance."
+      }
+    ]
+  },
+  {
+    "id": "q-returns-cumulative-drawdown",
+    "title": "Portfolio drawdown time series",
+    "category": "Time Series & Risk",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "returns"
+    },
+    "instructions": "Treat AAPL returns as strategy returns. Compute the drawdown Series from a compounded wealth index.",
+    "reference": "(1 + df[\"AAPL\"]).cumprod() / (1 + df[\"AAPL\"]).cumprod().cummax() - 1",
+    "hint": "Work inside out. Compound each daily return into an evolving wealth index.",
+    "explanation": [
+      {
+        "code": "(1+r).cumprod()",
+        "meaning": "Compound each daily return into an evolving wealth index."
+      },
+      {
+        "code": "cummax()",
+        "meaning": "Find the prior high-water mark of wealth at every date."
+      },
+      {
+        "code": "wealth / high - 1",
+        "meaning": "Calculate the fractional loss from the historical peak."
+      }
+    ]
+  },
+  {
+    "id": "q-returns-expanding-sharpe",
+    "title": "Expanding Sharpe estimate",
+    "category": "Time Series & Risk",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "returns",
+      "rows": 18
+    },
+    "instructions": "Return the expanding, annualized mean/std Sharpe ratio Series for AAPL, requiring at least four observations.",
+    "reference": "df[\"AAPL\"].expanding(min_periods=4).mean() / df[\"AAPL\"].expanding(min_periods=4).std() * np.sqrt(252)",
+    "hint": "Work inside out. Use every return seen up to each date, not a fixed lookback window.",
+    "explanation": [
+      {
+        "code": "expanding(min_periods=4)",
+        "meaning": "Use every return seen up to each date, not a fixed lookback window."
+      },
+      {
+        "code": "mean / std",
+        "meaning": "Form the running signal-to-noise ratio."
+      },
+      {
+        "code": "sqrt(252)",
+        "meaning": "Annualize assuming daily returns and zero risk-free rate."
+      }
+    ]
+  },
+  {
+    "id": "q-prices-pct-change",
+    "title": "Last 10 trading-day returns",
+    "category": "Time Series & Risk",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "price_panel"
+    },
+    "instructions": "Forward-fill missing prices, calculate daily percentage returns without additional filling, and keep the last 10 rows.",
+    "reference": "df.ffill().pct_change(fill_method=None).tail(10)",
+    "hint": "Work inside out. Supply the last observed price where a quote is missing, an explicit causal policy.",
+    "explanation": [
+      {
+        "code": "ffill",
+        "meaning": "Supply the last observed price where a quote is missing, an explicit causal policy."
+      },
+      {
+        "code": "pct_change(fill_method=None)",
+        "meaning": "Convert sequential price differences into relative changes."
+      },
+      {
+        "code": "tail(10)",
+        "meaning": "Restrict the view to recent dates."
+      }
+    ]
+  },
+  {
+    "id": "q-returns-vwap-cov",
+    "title": "Cross-asset sample covariance",
+    "category": "Time Series & Risk",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "returns",
+      "rows": 18
+    },
+    "instructions": "Calculate the full sample covariance matrix for AAPL, MSFT and NVDA only, in that order.",
+    "reference": "df[[\"AAPL\", \"MSFT\", \"NVDA\"]].cov()",
+    "hint": "Work inside out. Select assets and establish their column order.",
+    "explanation": [
+      {
+        "code": "[[...]]",
+        "meaning": "Select assets and establish their column order."
+      },
+      {
+        "code": "cov()",
+        "meaning": "Compute the sample covariance of selected asset returns across dates, yielding a square matrix."
+      }
+    ]
+  },
+  {
+    "id": "q-returns-lagged-factor",
+    "title": "Lagged cross-sectional factor",
+    "category": "Time Series & Risk",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "returns"
+    },
+    "instructions": "Return the cross-sectional mean return across all assets, lagged by one trading day.",
+    "reference": "df.mean(axis=1).shift(1)",
+    "hint": "Work inside out. Collapse columns within each date to one market-wide cross-sectional return.",
+    "explanation": [
+      {
+        "code": "mean(axis=1)",
+        "meaning": "Collapse columns within each date to one market-wide cross-sectional return."
+      },
+      {
+        "code": "shift(1)",
+        "meaning": "At date t, expose only the previous date’s computed factor."
+      }
+    ]
+  },
+  {
+    "id": "q-prices-momentum",
+    "title": "Causal momentum feature",
+    "category": "Time Series & Risk",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "price_panel"
+    },
+    "instructions": "Using forward-filled prices, return the 5-day price momentum matrix, lagged one day.",
+    "reference": "df.ffill().pct_change(5, fill_method=None).shift(1)",
+    "hint": "Work inside out. Make the explicit fill policy for intermittent missing prices.",
+    "explanation": [
+      {
+        "code": "ffill",
+        "meaning": "Make the explicit fill policy for intermittent missing prices."
+      },
+      {
+        "code": "pct_change(5)",
+        "meaning": "Compute P_t/P_(t−5)−1 for each asset."
+      },
+      {
+        "code": "shift(1)",
+        "meaning": "Delay every feature one session before it is used for trading."
+      }
+    ]
+  },
+  {
+    "id": "q-returns-rolling-corr",
+    "title": "Dynamic pairwise correlation",
+    "category": "Time Series & Risk",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "returns",
+      "rows": 18
+    },
+    "instructions": "Return 6-day rolling correlation of NVDA and MSFT as a Series.",
+    "reference": "df[\"NVDA\"].rolling(6).corr(df[\"MSFT\"])",
+    "hint": "Work inside out. Build six-session windows along dates.",
+    "explanation": [
+      {
+        "code": "rolling(6)",
+        "meaning": "Build six-session windows along dates."
+      },
+      {
+        "code": "corr(other)",
+        "meaning": "Calculate Pearson correlation using the aligned second return Series for each window."
+      }
+    ]
+  },
+  {
+    "id": "q-xi-net-pnl",
+    "title": "Cost-adjusted P&L with latency",
+    "category": "Time Series & Risk",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "xi_state"
+    },
+    "instructions": "Return daily net strategy return using yesterday’s signal clipped to [-1,1] times today’s return, minus today’s cost.",
+    "reference": "df[\"signal\"].clip(-1, 1).shift(1) * df[\"ret\"] - df[\"cost\"]",
+    "hint": "Work inside out. Bound the signal and delay exposure by one date; otherwise the backtest has look-ahead.",
+    "explanation": [
+      {
+        "code": "clip(-1,1).shift(1)",
+        "meaning": "Bound the signal and delay exposure by one date; otherwise the backtest has look-ahead."
+      },
+      {
+        "code": "multiply by ret",
+        "meaning": "Apply lagged position to the realized current return."
+      },
+      {
+        "code": "subtract cost",
+        "meaning": "Account for transaction cost at the same date."
+      }
+    ]
+  },
+  {
+    "id": "q-monthly-terminal-price",
+    "title": "Month-end price resampling",
+    "category": "Time Series & Risk",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "price_panel"
+    },
+    "instructions": "Forward-fill missing prices, resample to business month-end using the final available observation, then return the resulting matrix.",
+    "reference": "df.ffill().resample(\"BME\").last()",
+    "hint": "Work inside out. Apply an explicitly causal missing-price policy.",
+    "explanation": [
+      {
+        "code": "ffill",
+        "meaning": "Apply an explicitly causal missing-price policy."
+      },
+      {
+        "code": "resample(\"BME\").last()",
+        "meaning": "Group daily prices by business month-end periods and select the last available price per asset."
+      }
+    ]
+  },
+  {
+    "id": "q-price-stale-gap-age",
+    "title": "Detect stale price locations",
+    "category": "Time Series & Risk",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "price_panel"
+    },
+    "instructions": "Return a Boolean matrix showing where a price is absent, including all assets and dates.",
+    "reference": "df.isna() & df.ffill().notna()",
+    "hint": "Work inside out. Find actual missing quotes.",
+    "explanation": [
+      {
+        "code": "isna",
+        "meaning": "Find actual missing quotes."
+      },
+      {
+        "code": "ffill().notna",
+        "meaning": "Ensure a prior value exists that could be carried forward."
+      },
+      {
+        "code": "&",
+        "meaning": "Mark missing quotes that are forward-fillable, not initial missing values."
+      }
+    ]
+  }
+]

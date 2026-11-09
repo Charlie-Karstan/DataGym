@@ -1,0 +1,166 @@
+[
+  {
+    "id": "q-micro-quotes-mid",
+    "title": "Executable quote midpoint",
+    "category": "Market Microstructure",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "market_events"
+    },
+    "instructions": "Return symbol, time, and computed midpoint for quote events only, sorted by time.",
+    "reference": "df.query(\"event == 'quote'\").assign(mid=lambda x: (x[\"bid\"] + x[\"ask\"])/2)[[\"symbol\",\"time\",\"mid\"]].sort_values(\"time\")",
+    "hint": "Work inside out. Remove execution records, where bid/ask are absent.",
+    "explanation": [
+      {
+        "code": "query quote",
+        "meaning": "Remove execution records, where bid/ask are absent."
+      },
+      {
+        "code": "assign mid",
+        "meaning": "Vectorize the bid-ask midpoint calculation."
+      },
+      {
+        "code": "sort_values(time)",
+        "meaning": "Preserve event chronology for later joins."
+      }
+    ]
+  },
+  {
+    "id": "q-micro-trade-notional",
+    "title": "Executed value by symbol",
+    "category": "Market Microstructure",
+    "difficulty": 4,
+    "dataset": {
+      "kind": "market_events"
+    },
+    "instructions": "Return total trade notional (trade_px × size) per symbol as a Series.",
+    "reference": "df.query(\"event == 'trade'\").assign(notional=lambda x: x[\"trade_px\"] * x[\"size\"]).groupby(\"symbol\")[\"notional\"].sum()",
+    "hint": "Work inside out. Use only actual executions.",
+    "explanation": [
+      {
+        "code": "query trade",
+        "meaning": "Use only actual executions."
+      },
+      {
+        "code": "assign notional",
+        "meaning": "Calculate executed value for every record."
+      },
+      {
+        "code": "groupby(symbol).sum",
+        "meaning": "Aggregate executed notional by ticker."
+      }
+    ]
+  },
+  {
+    "id": "q-micro-asof-mid",
+    "title": "Last quote before trade",
+    "category": "Market Microstructure",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "market_events"
+    },
+    "instructions": "For each trade, attach the most recent quote midpoint for that ticker via backward as-of merge. Return symbol, time, trade_px, mid.",
+    "reference": "pd.merge_asof(df.query(\"event == 'trade'\")[[\"time\",\"symbol\",\"trade_px\"]].sort_values(\"time\"), df.query(\"event == 'quote'\").assign(mid=lambda x: (x[\"bid\"]+x[\"ask\"])/2)[[\"time\",\"symbol\",\"mid\"]].sort_values(\"time\"), on=\"time\", by=\"symbol\", direction=\"backward\")[[\"symbol\",\"time\",\"trade_px\",\"mid\"]]",
+    "hint": "Work inside out. Create two relations from one event table.",
+    "explanation": [
+      {
+        "code": "split trades / quotes",
+        "meaning": "Create two relations from one event table."
+      },
+      {
+        "code": "sort_values(time)",
+        "meaning": "Both as-of join inputs MUST be ordered by the matching time key."
+      },
+      {
+        "code": "merge_asof(...,by=symbol,direction=backward)",
+        "meaning": "Find the latest quote known at or before each trade for the SAME ticker."
+      },
+      {
+        "code": "column projection",
+        "meaning": "Return just trade and matched quote fields."
+      }
+    ]
+  },
+  {
+    "id": "q-micro-effective-spread",
+    "title": "Effective spread versus last quote",
+    "category": "Market Microstructure",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "market_events"
+    },
+    "instructions": "For each trade, return 2 × absolute difference between trade price and previous same-ticker quote mid, as a Series indexed by trade time.",
+    "reference": "pd.merge_asof(df.query(\"event == 'trade'\")[[\"time\",\"symbol\",\"trade_px\"]].sort_values(\"time\"), df.query(\"event == 'quote'\").assign(mid=lambda x: (x[\"bid\"]+x[\"ask\"])/2)[[\"time\",\"symbol\",\"mid\"]].sort_values(\"time\"), on=\"time\", by=\"symbol\", direction=\"backward\").set_index(\"time\").eval(\"2 * abs(trade_px - mid)\")",
+    "hint": "Work inside out. Align every execution with the latest earlier quote for its ticker rather than using future information.",
+    "explanation": [
+      {
+        "code": "merge_asof backward",
+        "meaning": "Align every execution with the latest earlier quote for its ticker rather than using future information."
+      },
+      {
+        "code": "set_index(time)",
+        "meaning": "Give each output value a trade-time label."
+      },
+      {
+        "code": "eval(2 * abs(...))",
+        "meaning": "Form a simple effective-spread proxy; no trade-sign inference is needed."
+      }
+    ]
+  },
+  {
+    "id": "q-micro-volume-per-minute",
+    "title": "Trade size by event minute",
+    "category": "Market Microstructure",
+    "difficulty": 3,
+    "dataset": {
+      "kind": "market_events"
+    },
+    "instructions": "Return total executed size by timestamp for trade events, sorted by time.",
+    "reference": "df.query(\"event == 'trade'\").groupby(\"time\")[\"size\"].sum().sort_index()",
+    "hint": "Work inside out. Exclude quote updates that have zero executed size.",
+    "explanation": [
+      {
+        "code": "query",
+        "meaning": "Exclude quote updates that have zero executed size."
+      },
+      {
+        "code": "groupby(time).sum",
+        "meaning": "Add executions at identical timestamps, keeping a time-indexed Series."
+      },
+      {
+        "code": "sort_index",
+        "meaning": "Order event times chronologically."
+      }
+    ]
+  },
+  {
+    "id": "q-micro-symbol-vwap",
+    "title": "Execution VWAP by ticker",
+    "category": "Market Microstructure",
+    "difficulty": 5,
+    "dataset": {
+      "kind": "market_events"
+    },
+    "instructions": "Return execution volume-weighted average price per ticker as a Series.",
+    "reference": "df.query(\"event == 'trade'\").assign(notional=lambda x: x[\"trade_px\"]*x[\"size\"]).groupby(\"symbol\")[[\"notional\",\"size\"]].sum().eval(\"notional / size\")",
+    "hint": "Work inside out. Exclude nonexecuted quotes.",
+    "explanation": [
+      {
+        "code": "query trade",
+        "meaning": "Exclude nonexecuted quotes."
+      },
+      {
+        "code": "assign(price*size)",
+        "meaning": "Calculate dollar notional per execution."
+      },
+      {
+        "code": "groupby(symbol).sum()",
+        "meaning": "Obtain total notional and volume per symbol."
+      },
+      {
+        "code": "eval(notional/size)",
+        "meaning": "Divide after aggregation; averaging individual trade prices would be wrong."
+      }
+    ]
+  }
+]

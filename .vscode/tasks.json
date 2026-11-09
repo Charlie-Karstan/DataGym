@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "DataGym: Next exercise",
+      "type": "process",
+      "command": "/usr/bin/curl",
+      "args": [
+        "--silent",
+        "--show-error",
+        "--fail",
+        "--max-time", "5",
+        "-o", "/dev/null",
+        "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "--data", "{}",
+        "http://127.0.0.1:8765/api/new"
+      ],
+      "presentation": {
+        "reveal": "never",
+        "panel": "dedicated",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    }
+  ]
+}
