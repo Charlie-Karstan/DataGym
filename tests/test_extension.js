@@ -13,7 +13,8 @@ function loadExtension({ editor }) {
   let documentOpens = 0;
   const vscode = {
     workspace: {
-      workspaceFolders: [{ uri: { fsPath: projectRoot } }],
+      workspaceFolders: [],
+      onDidChangeTextDocument: () => ({ dispose() {} }),
       getConfiguration: () => ({ get: () => '' }),
       openTextDocument: async () => {
         documentOpens += 1;
@@ -54,7 +55,12 @@ function loadExtension({ editor }) {
   };
   const code = fs.readFileSync(path.join(projectRoot, 'extension', 'extension.js'), 'utf8');
   vm.runInNewContext(code, context, { filename: 'extension.js' });
-  context.module.exports.activate({ subscriptions: [] });
+  context.module.exports.activate({
+    subscriptions: [],
+    extensionPath: path.join(projectRoot, 'extension'),
+    globalStorageUri: { fsPath: projectRoot },
+  });
+  vm.runInNewContext('server = { killed: false }; backendPort = 8765;', context);
   return { commands, getDocumentOpens: () => documentOpens };
 }
 

@@ -317,8 +317,9 @@ def make_handler(trainer: Trainer):
 def run(host: str = '127.0.0.1', port: int = 8765):
     trainer = Trainer()
     server = ThreadingHTTPServer((host, port), make_handler(trainer))
+    print(f'DATAGYM_READY {server.server_port}', flush=True)
     print('\nDataGym 0.1 — Visual Python Data Trainer')
-    print(f'Local API: http://{host}:{port} (normally launched by the VS Code extension)')
+    print(f'Local API: http://{host}:{server.server_port} (normally launched by the VS Code extension)')
     print(f'Edit with VS Code: {SOLUTION}')
     print(f'Exercise library: {ROOT / "exercise_packs"}')
     print('Press Ctrl+C in this terminal to stop.\n')

@@ -27,3 +27,6 @@ dist/
 *.code-workspace
 .DS_Store
 __MACOSX/
+
+# Generated extension runtime (staged when packaging)
+extension/runtime/
