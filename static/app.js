@@ -125,7 +125,7 @@ function renderStatus(state) {
 
 function renderStats(state) {
   const stats = state.stats;
-  const currentSolve = state.solved ? 1 : 0;
+  const currentSolve = state.solved && state.current_unrecorded ? 1 : 0;
   const values = [
     [`${stats.solved + currentSolve}/${stats.attempted + currentSolve}`, 'solved'],
     [stats.streak + currentSolve, 'streak'],
@@ -161,6 +161,7 @@ function render(state) {
   renderStatus(state);
   renderStats(state);
   renderPreviews(state);
+  $('previousBtn').disabled = !state.can_previous;
 }
 
 async function api(url, body = null) {
@@ -196,6 +197,12 @@ async function action(path, payload, callback) {
     await poll();
   } catch (e) { toast(e.message); }
 }
+$('previousBtn').addEventListener('click', () => {
+  action('/api/previous', {}, state => {
+    render(state);
+    toast('Previous exercise restored');
+  });
+});
 $('nextBtn').addEventListener('click', () => action('/api/new', {
   category: $('category').value, difficulty: $('difficulty').value,
 }, (state) => { render(state); toast('New exercise loaded in solution.py'); }));

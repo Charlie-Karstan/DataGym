@@ -7,8 +7,10 @@ const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
 
 const ROUTES = new Set([
-  '/api/state', '/api/health', '/api/new', '/api/hint',
-  '/api/reveal', '/api/reset', '/api/import',
+  '/api/state', '/api/health',
+  '/api/new', '/api/previous',
+  '/api/hint', '/api/reveal',
+  '/api/reset', '/api/import',
 ]);
 
 let panel;
@@ -273,12 +275,32 @@ async function positionAtResult() {
   );
 }
 
+async function saveSolutionBeforeNavigation() {
+  const filename = path.join(storage, 'workspace', 'solution.py');
+
+  const document = vscode.workspace.textDocuments?.find(
+    doc => doc.uri.fsPath === filename
+  );
+
+  if (document?.isDirty && !(await document.save())) {
+    throw new Error('Could not save solution.py before navigating.');
+  }
+}
+
 async function handleWebviewRequest(message) {
+  if (message.route === '/api/new' || message.route === '/api/previous') {
+    await saveSolutionBeforeNavigation();
+  }
   if (message?.type !== 'api' || !Number.isSafeInteger(message.id)) return;
   try {
     const data = await api(message.route, message.body);
     await panel?.webview.postMessage({ type: 'response', id: message.id, ok: true, data });
-    if (message.route === '/api/new') await positionAtResult();
+  if (
+    message.route === '/api/new' ||
+    message.route === '/api/previous'
+  ) {
+    await positionAtResult();
+  }
   } catch (error) {
     await panel?.webview.postMessage({
       type: 'response', id: message.id, ok: false,
@@ -319,6 +341,9 @@ async function runCommand(route) {
       await openTrainer();
       await panel?.webview.postMessage({ type: route === '/api/reveal' ? 'answer' : 'hint' });
       return;
+    }
+    if (route === '/api/new' || route === '/api/previous') {
+      await saveSolutionBeforeNavigation();
     }
     const data = await api(route, {});
     if (route === '/api/new') await positionAtResult();
