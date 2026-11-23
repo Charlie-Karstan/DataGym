@@ -71,37 +71,102 @@ class Trainer:
         self.worker_active = False
         self.category_filter = 'All'
         self.difficulty_filter = 'All'
+        self.history = []
+        self.history_index = -1
+        self.visit_dirty = False
         self.new_exercise()
 
-    def new_exercise(self, category: str = 'All', difficulty: str = 'All') -> dict:
-        with self.lock:
-            if self.exercise is not None:
-                self.db.record(self.exercise, self.solved, self.elapsed(),
-                               self.previews, self.hints, self.revealed)
-            self.exercise = self.db.pick(category, difficulty)
-            exercise = self.exercise
-            self.input_preview, self.target_preview = _exercise_previews(exercise)
-            self.live_preview = None
+    def _save_visit(self):
+        if self.history_index < 0:
+            return
+
+        if self.visit_dirty:
+            self.db.record(
+                self.exercise, self.solved, self.elapsed(),
+                self.previews, self.hints, self.revealed
+            )
+
+        self.history[self.history_index].update({
+            'source': SOLUTION.read_text(encoding='utf-8'),
+            'live_preview': self.live_preview,
+            'status': self.status,
+            'message': self.message,
+            'elapsed': self.elapsed(),
+            'solved': self.solved,
+            'revealed': self.revealed,
+            'previews': self.previews,
+            'hints': self.hints,
+        })
+        self.visit_dirty = False
+
+    def _load_visit(self):
+        entry = self.history[self.history_index]
+        exercise = entry['exercise']
+
+        self.exercise = exercise
+        self.input_preview, self.target_preview = _exercise_previews(exercise)
+        self.live_preview = entry.get('live_preview')
+        self.status = entry.get('status', 'idle')
+        if self.status == 'running':
             self.status = 'idle'
-            self.message = 'Write your solution and assign the answer to result.'
-            self.started_at = time.monotonic()
-            self.finished_at = None
-            self.solved = False
-            self.revealed = False
-            self.previews = 0
-            self.hints = 0
-            self.category_filter = category
-            self.difficulty_filter = difficulty
-            self.render_version += 1
-            self.job_counter += 1
-            self.active_job = self.job_counter
-            self.pending_job = None
-            template = _solution_template(exercise)
-            self.initial_source = template
-            SOLUTION.write_text(template, encoding='utf-8')
-            self.last_source = template
-            self.last_mtime = SOLUTION.stat().st_mtime_ns
-            return self.snapshot()
+
+        self.message = entry.get(
+            'message', 'Write your solution and assign the answer to result.'
+        )
+        self.solved = entry.get('solved', False)
+        self.revealed = entry.get('revealed', False)
+        self.previews = entry.get('previews', 0)
+        self.hints = entry.get('hints', 0)
+        self.category_filter = entry['category_filter']
+        self.difficulty_filter = entry['difficulty_filter']
+
+        self.started_at = time.monotonic() - entry.get('elapsed', 0.0)
+        self.finished_at = time.monotonic() if self.solved else None
+        self.visit_dirty = 'source' not in entry
+
+        self.render_version += 1
+        self.job_counter += 1
+        self.active_job = self.job_counter
+        self.pending_job = None
+
+        self.initial_source = _solution_template(exercise)
+        source = entry.get('source', self.initial_source)
+        SOLUTION.write_text(source, encoding='utf-8')
+        self.last_source = source
+        self.last_mtime = SOLUTION.stat().st_mtime_ns
+
+        return self.snapshot()
+
+    def new_exercise(self, category='All', difficulty='All'):
+        with self.lock:
+            self._save_visit()
+            next_index = self.history_index + 1
+
+            if (
+                next_index < len(self.history)
+                and self.history[next_index]['category_filter'] == category
+                and self.history[next_index]['difficulty_filter'] == difficulty
+            ):
+                self.history_index = next_index
+            else:
+                self.history = self.history[:next_index]
+                self.history.append({
+                    'exercise': self.db.pick(category, difficulty),
+                    'category_filter': category,
+                    'difficulty_filter': difficulty,
+                })
+                self.history_index = next_index
+
+            return self._load_visit()
+
+    def previous_exercise(self):
+        with self.lock:
+            if self.history_index <= 0:
+                return self.snapshot()
+
+            self._save_visit()
+            self.history_index -= 1
+            return self._load_visit()
 
     def elapsed(self) -> float:
         end = self.finished_at if self.finished_at is not None else time.monotonic()
@@ -123,6 +188,7 @@ class Trainer:
             if source == self.last_source:
                 return
             self.last_source = source
+            self.visit_dirty = True
             if self.exercise is None:
                 return
             self.job_counter += 1
@@ -177,6 +243,7 @@ class Trainer:
         with self.lock:
             self.hints += 1
             return {'hint': self.exercise.hint if self.exercise else ''}
+        self.visit_dirty = True
 
     def reveal(self) -> dict:
         with self.lock:
@@ -195,6 +262,10 @@ class Trainer:
                     }
                 ]
             }
+        
+        self.visit_dirty = True
+
+
 
     def reset_code(self) -> dict:
         with self.lock:
@@ -213,6 +284,10 @@ class Trainer:
             )
             self.render_version += 1
             return {'ok': True}
+        
+        self.visit_dirty = True
+
+
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -229,6 +304,8 @@ class Trainer:
                 'status': self.status, 'message': self.message,
                 'solved': self.solved, 'revealed': self.revealed,
                 'previews': self.previews, 'hints_used': self.hints,
+                'can_previous': self.history_index > 0,
+                'current_unrecorded': self.visit_dirty,
                 'elapsed': round(self.elapsed(), 1), 'time_goal': 120,
                 'render_version': self.render_version,
                 'solution_path': str(SOLUTION), 'stats': self.db.stats(),
@@ -298,6 +375,8 @@ def make_handler(trainer: Trainer):
                     if not isinstance(category, str) or difficulty not in ('All', '1', '2', '3', '4', '5'):
                         raise ValueError('Invalid filters')
                     return self.json_response(trainer.new_exercise(category, difficulty))
+                if path == '/api/previous':
+                    return self.json_response(trainer.previous_exercise())
                 if path == '/api/hint':
                     return self.json_response(trainer.hint())
                 if path == '/api/reveal':
@@ -317,8 +396,9 @@ def make_handler(trainer: Trainer):
 def run(host: str = '127.0.0.1', port: int = 8765):
     trainer = Trainer()
     server = ThreadingHTTPServer((host, port), make_handler(trainer))
+    print(f'DATAGYM_READY {server.server_port}', flush=True)
     print('\nDataGym 0.1 — Visual Python Data Trainer')
-    print(f'Local API: http://{host}:{port} (normally launched by the VS Code extension)')
+    print(f'Local API: http://{host}:{server.server_port} (normally launched by the VS Code extension)')
     print(f'Edit with VS Code: {SOLUTION}')
     print(f'Exercise library: {ROOT / "exercise_packs"}')
     print('Press Ctrl+C in this terminal to stop.\n')

@@ -4,41 +4,74 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
-const PORT = 8765;
-const BASE_URL = `http://127.0.0.1:${PORT}`;
 const ROUTES = new Set([
-  '/api/state', '/api/health', '/api/new', '/api/hint',
-  '/api/reveal', '/api/reset', '/api/import',
+  '/api/state', '/api/health',
+  '/api/new', '/api/previous',
+  '/api/hint', '/api/reveal',
+  '/api/reset', '/api/import',
 ]);
 
 let panel;
 let server;
-let ownsServer = false;
 let root;
+let storage;
 let output;
 let starting;
+let backendPort;
+let saveTimer;
 
-function findRoot() {
-  for (const folder of vscode.workspace.workspaceFolders || []) {
-    const dir = folder.uri.fsPath;
-    const files = ['app.py', 'static/index.html', 'datagym/ui_app.py'];
-    if (files.every(file => fs.existsSync(path.join(dir, file)))) return dir;
-  }
-  throw new Error('Open the DataGym project folder in VS Code (the folder with app.py).');
+function managedPython() {
+  return path.join(storage, 'venv', process.platform === 'win32' ? 'Scripts' : 'bin',
+    process.platform === 'win32' ? 'python.exe' : 'python');
 }
 
-function pythonExecutable() {
+function systemPython() {
   const configured = vscode.workspace.getConfiguration('datagym').get('pythonPath', '').trim();
-  if (configured) return configured;
+  const candidates = configured
+    ? [[configured, []]]
+    : process.platform === 'win32'
+      ? [['py', ['-3']], ['python', []]]
+      : [['python3', []], ['/opt/homebrew/bin/python3', []], ['/usr/local/bin/python3', []], ['python', []]];
 
-  const relativePath = process.platform === 'win32'
-    ? ['.venv', 'Scripts', 'python.exe']
-    : ['.venv', 'bin', 'python'];
-  const python = path.join(root, ...relativePath);
+  for (const [command, prefix] of candidates) {
+    const result = spawnSync(command, [...prefix, '-c',
+      'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'],
+      { timeout: 6000, windowsHide: true });
+    if (result.status === 0) return { command, prefix };
+  }
+  throw new Error('Python 3.11+ is required. Install Python or set datagym.pythonPath in Settings.');
+}
+
+function runProcess(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd: root, windowsHide: true });
+    child.stdout.on('data', data => output.append(data.toString()));
+    child.stderr.on('data', data => output.append(data.toString()));
+    child.on('error', reject);
+    child.on('close', code => code === 0 ? resolve() : reject(
+      new Error(`${path.basename(command)} exited with code ${code}. See Output → DataGym.`)));
+  });
+}
+
+async function ensurePython() {
+  const python = managedPython();
   if (!fs.existsSync(python)) {
-    throw new Error(`Python environment not found: ${python}. See START_HERE.md.`);
+    output.appendLine('Creating private Python environment...');
+    fs.mkdirSync(storage, { recursive: true });
+    const { command, prefix } = systemPython();
+    await runProcess(command, [...prefix, '-m', 'venv', path.join(storage, 'venv')]);
+  }
+
+  const requirements = fs.readFileSync(path.join(root, 'requirements.txt'));
+  const fingerprint = crypto.createHash('sha256').update(requirements).digest('hex');
+  const marker = path.join(storage, 'dependencies.sha256');
+  if (!fs.existsSync(marker) || fs.readFileSync(marker, 'utf8') !== fingerprint) {
+    output.appendLine('Installing DataGym Python dependencies...');
+    await runProcess(python, ['-m', 'pip', 'install', '--disable-pip-version-check',
+      '-r', path.join(root, 'requirements.txt')]);
+    fs.writeFileSync(marker, fingerprint);
   }
   return python;
 }
@@ -46,7 +79,8 @@ function pythonExecutable() {
 async function api(route, body) {
   if (!ROUTES.has(route)) throw new Error(`Unsupported DataGym route: ${route}`);
 
-  const response = await fetch(BASE_URL + route, {
+  if (!backendPort) throw new Error('DataGym backend is not running.');
+  const response = await fetch(`http://127.0.0.1:${backendPort}${route}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -63,49 +97,77 @@ async function api(route, body) {
   return data;
 }
 
-async function backendRunning() {
-  try {
-    const health = await api('/api/health');
-    return health.ok === true && health.service === 'DataGym';
-  } catch {
-    return false;
-  }
-}
+function launchBackend(python) {
+  return new Promise((resolve, reject) => {
+    let finished = false;
+    let buffer = '';
+    const child = spawn(python, ['app.py'], {
+      cwd: root,
+      env: {
+        ...process.env,
+        DATAGYM_PORT: '0',
+        DATAGYM_WORKSPACE: path.join(storage, 'workspace'),
+        PYTHONUNBUFFERED: '1',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    server = child;
+    backendPort = undefined;
+    const timer = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        child.kill();
+        reject(new Error('Python backend startup timed out. See Output → DataGym.'));
+      }
+    }, 20000);
 
-function launchBackend() {
-  server = spawn(pythonExecutable(), ['app.py'], {
-    cwd: root,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  ownsServer = true;
-
-  server.stdout.on('data', data => output.append(data.toString()));
-  server.stderr.on('data', data => output.append(data.toString()));
-  server.on('error', error => output.appendLine(`Backend failed: ${error.message}`));
-  server.on('exit', code => {
-    output.appendLine(`DataGym Python process exited: ${code}`);
-    server = undefined;
-    ownsServer = false;
+    child.stdout.on('data', data => {
+      const chunk = data.toString();
+      output.append(chunk);
+      buffer = (buffer + chunk).slice(-4096);
+      const ready = buffer.match(/DATAGYM_READY (\d+)/);
+      if (ready && !finished) {
+        finished = true;
+        clearTimeout(timer);
+        backendPort = Number(ready[1]);
+        resolve();
+      }
+    });
+    child.stderr.on('data', data => output.append(data.toString()));
+    child.on('error', error => {
+      clearTimeout(timer);
+      if (!finished) { finished = true; reject(error); }
+    });
+    child.on('exit', code => {
+      clearTimeout(timer);
+      output.appendLine(`DataGym backend exited: ${code}`);
+      if (server === child) {
+        server = undefined;
+        backendPort = undefined;
+      }
+      if (!finished) { finished = true; reject(new Error(`Backend exited with code ${code}`)); }
+    });
   });
 }
 
 async function ensureBackend() {
-  if (await backendRunning()) return;
+  if (server && backendPort && !server.killed) return;
   if (starting) return starting;
 
-  starting = (async () => {
-    launchBackend();
-    for (let attempt = 0; attempt < 50; attempt++) {
-      if (await backendRunning()) return;
-      if (!server) break;
-      await new Promise(resolve => setTimeout(resolve, 150));
-    }
-    throw new Error('Backend did not start. See Output → DataGym; port 8765 may be occupied.');
-  })();
-
+  starting = vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: 'Preparing DataGym',
+    cancellable: false,
+  }, async () => {
+    const python = await ensurePython();
+    await launchBackend(python);
+  });
   try {
     await starting;
+  } catch (error) {
+    output.show(true);
+    throw error;
   } finally {
     starting = undefined;
   }
@@ -178,7 +240,7 @@ function renderHtml(webview) {
 }
 
 async function positionAtResult() {
-  const uri = vscode.Uri.file(path.join(root, 'workspace', 'solution.py'));
+  const uri = vscode.Uri.file(path.join(storage, 'workspace', 'solution.py'));
   const key = uri.toString();
   let editor = vscode.window.visibleTextEditors.find(
   candidate =>
@@ -213,12 +275,32 @@ async function positionAtResult() {
   );
 }
 
+async function saveSolutionBeforeNavigation() {
+  const filename = path.join(storage, 'workspace', 'solution.py');
+
+  const document = vscode.workspace.textDocuments?.find(
+    doc => doc.uri.fsPath === filename
+  );
+
+  if (document?.isDirty && !(await document.save())) {
+    throw new Error('Could not save solution.py before navigating.');
+  }
+}
+
 async function handleWebviewRequest(message) {
+  if (message.route === '/api/new' || message.route === '/api/previous') {
+    await saveSolutionBeforeNavigation();
+  }
   if (message?.type !== 'api' || !Number.isSafeInteger(message.id)) return;
   try {
     const data = await api(message.route, message.body);
     await panel?.webview.postMessage({ type: 'response', id: message.id, ok: true, data });
-    if (message.route === '/api/new') await positionAtResult();
+  if (
+    message.route === '/api/new' ||
+    message.route === '/api/previous'
+  ) {
+    await positionAtResult();
+  }
   } catch (error) {
     await panel?.webview.postMessage({
       type: 'response', id: message.id, ok: false,
@@ -228,7 +310,6 @@ async function handleWebviewRequest(message) {
 }
 
 async function openTrainer() {
-  root = findRoot();
   await ensureBackend();
   if (panel) {
     panel.reveal(undefined, true);
@@ -255,12 +336,14 @@ async function openTrainer() {
 
 async function runCommand(route) {
   try {
-    root = findRoot();
     await ensureBackend();
     if (route === '/api/reveal' || route === '/api/hint') {
       await openTrainer();
       await panel?.webview.postMessage({ type: route === '/api/reveal' ? 'answer' : 'hint' });
       return;
+    }
+    if (route === '/api/new' || route === '/api/previous') {
+      await saveSolutionBeforeNavigation();
     }
     const data = await api(route, {});
     if (route === '/api/new') await positionAtResult();
@@ -271,7 +354,18 @@ async function runCommand(route) {
 }
 
 function activate(context) {
+  root = path.join(context.extensionPath, 'runtime');
+  storage = context.globalStorageUri.fsPath;
+  fs.mkdirSync(storage, { recursive: true });
   output = vscode.window.createOutputChannel('DataGym');
+  output.appendLine(`DataGym user data: ${storage}`);
+  context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
+    if (event.document.uri.fsPath !== path.join(storage, 'workspace', 'solution.py')) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      event.document.save().catch(error => output.appendLine(`Auto-save failed: ${error.message}`));
+    }, 450);
+  }));
   context.subscriptions.push(output);
   context.subscriptions.push(vscode.commands.registerCommand('datagym.open', async () => {
     try {
@@ -294,7 +388,8 @@ function activate(context) {
 }
 
 function deactivate() {
-  if (ownsServer && server && !server.killed) server.kill();
+  clearTimeout(saveTimer);
+  if (server && !server.killed) server.kill();
 }
 
 module.exports = { activate, deactivate };

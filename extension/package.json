@@ -2,7 +2,7 @@
   "name": "datagym-vscode",
   "displayName": "DataGym",
   "description": "Practice pandas and NumPy with live DataFrame previews in VS Code (local Python engine).",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "charliekarstan",
   "engines": {
     "vscode": "^1.90.0"
@@ -48,7 +48,7 @@
         "datagym.pythonPath": {
           "type": "string",
           "default": "",
-          "description": "Optional Python interpreter path. Empty uses DataGym/.venv/bin/python on macOS/Linux or .venv/Scripts/python.exe on Windows."
+          "description": "Optional Python 3.11+ interpreter used to create the private DataGym environment. Auto-detected if empty."
         }
       }
     }
@@ -69,5 +69,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Charlie-Karstan/DataGym.git"
+  },
+  "scripts": {
+    "vscode:prepublish": "node scripts/stage-runtime.js"
   }
 }

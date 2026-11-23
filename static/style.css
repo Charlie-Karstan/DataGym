@@ -666,3 +666,8 @@ body * {
     text-transform: none !important;
     font-variant-ligatures: none !important;
 }
+
+.top-actions button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}

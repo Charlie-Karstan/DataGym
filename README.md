@@ -1,121 +1,72 @@
 # DataGym
 
-**Practice pandas and NumPy in your own VS Code editor.** DataGym presents the input dataset, your current result, and the expected result side by side. You write ordinary Python in `workspace/solution.py` and see whether the values and structure match.
+**An interactive pandas and NumPy training environment for VS Code.**
 
-![DataGym in VS Code](docs/screenshot.png)
+[**Install from VS Code Marketplace**](https://marketplace.visualstudio.com/items?itemName=charliekarstan.datagym-vscode) · [Report an issue](https://github.com/Charlie-Karstan/DataGym/issues) · [MIT License](LICENSE)
 
-## What it does
+DataGym helps you build fluency with Python's data-processing libraries through practical, short-form exercises. Work in a native VS Code editor and compare your output against the expected result as you code.
 
-- **159 exercises** across nine JSON packs, from basic indexing to quantitative finance and numerical linear algebra
-- Randomized, reproducible inputs and reference solutions
-- Three panels: source data, live result, and target result
-- Automatic evaluation of saved Python, with checks for type, labels, shape, dtype, and values
-- Hints, reference answers, and step-by-step explanations
-- Local SQLite progress tracking, difficulty and category filters
-- VS Code commands and a `Cmd+Option+N` shortcut to move to the next exercise
+![DataGym interface](docs/screenshot.png)
 
-This is an **early local-first release**. The extension is a VS Code panel, but it **requires this project folder and a Python virtual environment**; installing the VSIX alone does not install the Python engine or its dependencies. A fully self-contained extension is a possible future release.
+## Features
 
-## Requirements
+- **159 exercises across nine packs**, covering pandas, NumPy, data cleaning, time series, linear algebra, market microstructure, options, and quantitative finance.
+- **Three-panel feedback** showing the input dataset, your current result, and the expected output.
+- **Automatic evaluation** of saved Python code, checking values, shape, labels, and data types.
+- **Hints and worked solutions** with step-by-step explanations.
+- **Previous and Next navigation** to revisit exercises and restore your code within a session.
+- **Local progress tracking** with SQLite, randomized exercise inputs, and difficulty filters.
 
-- VS Code 1.90 or newer
-- Python 3.11 or newer (tested with Python 3.13)
-- `pandas` and `numpy`, installed as described below
-- Node.js **only if you want to build the VSIX yourself**
+Solutions are written in an ordinary Python editor, so your existing VS Code extensions, keybindings, and editing workflow remain available.
 
-### 1. Set up Python
+## Getting started
 
-Clone or download the source and open a terminal in its `DataGym` folder:
+**Requirements:** Desktop VS Code 1.90+ and Python 3.11+.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
+1. [Install DataGym from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=charliekarstan.datagym-vscode).
+2. Open the Command Palette (`Cmd+Shift+P` on macOS).
+3. Run **DataGym: Open Trainer**.
+4. Write your solution in the generated `solution.py` editor, assigning the output to `result`.
 
-On Windows, create the environment with `py -m venv .venv` and activate using `.venv\\Scripts\\activate` in Command Prompt, or `.venv\\Scripts\\Activate.ps1` in PowerShell.
+DataGym creates its own Python environment and installs the required dependencies on first launch. This initial setup requires an internet connection.
 
-### 2. Install the VS Code extension
+**No repository clone or manual virtual environment setup is required.**
 
-Install a release VSIX via **Extensions → ... → Install from VSIX...**. If a VSIX is not available yet, build one from this repository:
+Use **Next Exercise** to continue or **Previous** to revisit a problem. On macOS, `Cmd+Option+N` advances to the next exercise.
 
-```bash
-cd extension
-npx @vscode/vsce package
-```
+## Implementation
 
-Then install the generated `datagym-vscode-0.1.0.vsix` through the same VS Code menu. Building the extension is separate from installing the Python dependencies.
+DataGym consists of a VS Code extension and a local Python execution engine.
 
-### 3. Start practicing
+| Component | Responsibility |
+|---|---|
+| `extension/` | VS Code integration, commands, editor layout, runtime setup, and packaging |
+| `datagym/` | Exercise generation, execution, result comparison, and progress tracking |
+| `exercise_packs/` | JSON-defined exercises and reference solutions |
+| `static/` | Three-panel training interface |
+| `tests/` | Python and JavaScript regression tests |
 
-1. Open the **entire `DataGym` repository folder** in VS Code (the one containing `app.py`).
-2. Run **DataGym: Open Trainer** from the Command Palette (`Cmd+Shift+P` on macOS).
-3. The extension starts the local Python backend, opens the DataGym panel, and opens `workspace/solution.py`.
-4. Write your answer as `result = ...`. Evaluation runs after the file is saved. The included `.vscode/settings.json` enables Auto Save after 450 ms.
-5. Press `Cmd+Option+N` or use **DataGym: Next Exercise** to advance. You can position the panel above the editor or alongside it.
+The extension bundles the Python backend and exercise library. On first launch, it prepares an isolated environment and stores user data separately from the installed application files.
 
-**Next Exercise replaces `workspace/solution.py`.** Do not put work you want to keep in that training file. Progress is saved in `workspace/progress.sqlite3`; back it up before replacing a local installation.
-
-The extension also provides **Hint**, **Reveal Answer**, and **Reset Code** commands. If you use VSCode-Neovim, the code remains in a normal editor with your existing bindings and IntelliSense.
-
-If your Python interpreter is not at `.venv/bin/python` (or `.venv\\Scripts\\python.exe` on Windows), set **`datagym.pythonPath`** in VS Code settings to the interpreter's full path.
-
-## Exercises and progress
-
-- `exercise_packs/core.json` contains the starter exercises; the other packs cover market data, options, dispersion, feature engineering, time series, regimes, MOT, and NumPy.
-- Each exercise has a unique ID, a dataset specification, instructions, a reference expression, and optional parameters, hints, and explanations.
-- Adding a `.json` array in `exercise_packs/` makes another pack available after **Reload library**.
-- The application records attempts, results, time, hints, and revealed answers locally in SQLite. It favors under-practiced exercises but does not implement a full spaced-repetition curriculum.
-
-To inspect or validate the library:
-
-```bash
-python -m datagym.cli list
-python -m datagym.cli validate
-python -m datagym.cli stats
-```
-
-To add a simple exercise, create `exercise_packs/custom.json`:
-
-```json
-[
-  {
-    "id": "custom-price-filter",
-    "title": "Filter high prices",
-    "category": "Filtering",
-    "difficulty": 1,
-    "dataset": {"kind": "stocks", "rows": 10},
-    "instructions": "Return a Series of prices above 100.",
-    "reference": "df.loc[df['price'] > 100, 'price']",
-    "hint": "Create a Boolean condition on the price column."
-  }
-]
-```
-
-The current dataset kinds include `stocks`, `trades`, `returns`, `matrix`, `vector`, `inline_dataframe`, `inline_array`, and the types in `datagym/quant_datasets.py`. The `reference` field contains a Python expression **without** `result =`. Parameters can use `{ "choices": [...] }` and are substituted into instructions, reference expressions, hints, and explanation steps.
-
-## Project layout
-
-```text
-DataGym/
-├── datagym/          # Python engine, evaluation, generators, SQLite and API
-├── extension/        # VS Code extension source and manifest
-├── static/           # Existing three-panel HTML/CSS/JavaScript UI
-├── exercise_packs/   # JSON exercise definitions
-├── tests/            # Python tests
-├── scripts/          # Exercise-pack maintenance scripts
-├── workspace/        # Local generated solutions and progress (not committed)
-├── app.py            # Local backend entry point
-├── requirements.txt
-└── START_HERE.md      # Short installation guide
-```
-
-`datagym/ui_app.py` maintains the current session and local HTTP API, `executor.py` runs saved solutions in a short-lived Python worker, `compare.py` grades result objects, and `library.py` manages exercise definitions and progress. The extension displays the same UI inside a VS Code Webview and controls the backend; it doesn't duplicate the Python engine.
+Solutions are evaluated in a separate local Python process. Results are compared against reference outputs using checks appropriate to pandas and NumPy objects.
 
 ## Development
 
+The repository contains the full source code, tests, and exercise definitions. Cloning it is only necessary if you want to work on DataGym itself.
+
+To run the tests locally, clone the repository and set up the development environment:
+
 ```bash
+git clone https://github.com/Charlie-Karstan/DataGym.git
+cd DataGym
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
+```
+
+Run the checks:
+
+```bash
 python -m pytest -q
 python -m datagym.cli validate
 node --check extension/extension.js
@@ -123,15 +74,27 @@ node --check static/app.js
 node --test tests/test_extension.js
 ```
 
-Release instructions are in [`docs/RELEASING.md`](docs/RELEASING.md). The source in `extension/` is authoritative; don't edit installed extension files inside `~/.vscode/extensions/`.
+To build the VS Code extension:
 
-## Limitations and security
+```bash
+cd extension
+npx --yes @vscode/vsce package
+```
 
-- Code runs **locally under your user account**. The worker has a timeout but is **not a security sandbox**. Run only code and exercise packs you trust; do not expose the backend publicly or execute untrusted submissions.
-- The backend normally binds to `127.0.0.1:8765`. One local DataGym session uses that port.
-- Previews truncate large outputs; grading uses the full result. Evaluation follows saved code, not unsaved editor buffers.
-- The current VSIX needs the repository and Python dependencies. A browser view is still available with `python app.py`, but the VS Code extension is the intended workflow.
+The build bundles the current Python engine, frontend, and exercises into the VSIX.
+
+## Contributing
+
+DataGym is open source. Suggestions, bug reports, new exercises, and pull requests are welcome.
+
+[Open an issue](https://github.com/Charlie-Karstan/DataGym/issues) to report a problem or propose an improvement. For code contributions, please include relevant tests and verify the existing suite before submitting a pull request.
+
+## Notes
+
+- A Python installation is required. DataGym provisions its own application dependencies.
+- Progress is stored locally. Previous/Next exercise history currently lasts for the active session.
+- User-written Python runs locally and is **not security-sandboxed**. Only execute code and exercise packs you trust.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Verify any third-party datasets or exercise content are redistributable before adding them.
+DataGym is available under the [MIT License](LICENSE).
