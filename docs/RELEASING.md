@@ -1,21 +1,22 @@
 # Releasing DataGym
 
-The repository and the Marketplace extension are **two distributions of the same codebase**.
+DataGym's GitHub repository contains the source. The VS Code Marketplace distributes the extension built from that source.
 
-## Before the first public push
+## Release checklist
 
-1. Edit the copyright holder in `LICENSE` and `extension/LICENSE` if you prefer a specific author name instead of "DataGym contributors".
-2. Check every tracked file with `git status` and `git diff --cached --name-only`. Do not commit `.venv`, SQLite progress, generated `solution.py`, secrets, or VSIX files.
-3. Test a fresh checkout on your Mac. The extension currently needs the repository open and a `.venv` containing its dependencies.
-4. Add an actual `repository` URL to `extension/package.json` after creating your GitHub repository. The URL is not filled in because your account/repository address was not provided.
-5. Register a publisher in the [Visual Studio Marketplace](https://marketplace.visualstudio.com/manage), then set `publisher` in `extension/package.json` to that exact publisher ID. It is initially `datagym-local` as a development placeholder.
+1. Merge tested changes into `main`.
+2. Update `extension/package.json`, both READMEs, and `CHANGELOG.md`.
+3. Run the Python and JavaScript test suites.
+4. Build the VSIX from `main` and verify that the Python runtime and exercise packs are included.
+5. Test installation in a separate VS Code profile without opening the DataGym source folder.
+6. Upload the new VSIX to the existing Marketplace listing.
+7. Tag the released commit and create a corresponding GitHub release.
 
-## Test
+## Verify
 
 From the repository root:
 
 ```bash
-python -m pip install -r requirements-dev.txt
 python -m pytest -q
 python -m datagym.cli validate
 node --check extension/extension.js
@@ -23,23 +24,25 @@ node --check static/app.js
 node --test tests/test_extension.js
 ```
 
-## Package the extension
+## Package
 
 ```bash
 cd extension
-npx @vscode/vsce ls
-npx @vscode/vsce package
+npx --yes @vscode/vsce package
 ```
 
-Check that the package contains `extension.js`, `package.json`, `README.md`, and `LICENSE`. The Python engine and question packs remain outside the VSIX for this preview release; users obtain them from GitHub using the documented setup.
+The `vscode:prepublish` script stages the Python engine, exercise packs, and frontend into `extension/runtime/`.
 
-Test the new VSIX with **Extensions → ... → Install from VSIX...**, ideally in a separate VS Code profile. Check opening, next exercise, the existing solution tab, correct/wrong evaluation, hints, reset, and persistence after restart.
+Verify the generated VSIX contains `runtime/app.py`, `runtime/datagym/`, `runtime/exercise_packs/`, and `runtime/static/`.
+
+Do not commit the generated runtime, virtual environments, local databases, or VSIX builds.
 
 ## Publish
 
-1. Create the public `DataGym` GitHub repository; push the audited source and tag it `v0.1.0`.
-2. Create a GitHub release describing the setup requirements and linking to the Marketplace once published.
-3. Upload the tested VSIX through your Marketplace publisher account.
-4. For an update, make changes here, run tests, bump the version in `extension/package.json`, tag a new release, and publish a newly built VSIX. A GitHub push alone does not update the Marketplace.
+Upload the new VSIX through [Marketplace Publisher Management](https://marketplace.visualstudio.com/manage) under the existing `charliekarstan` publisher.
 
-Do not publish a package that still claims a publisher ID you have not registered. Do not use the old VSIX found in the original local project: build from `extension/` instead.
+The extension's `name` and `publisher` must remain unchanged. Increase its version for each Marketplace update.
+
+After publication, create an annotated Git tag and a GitHub release for the same version.
+
+Use a separate VS Code profile to test development builds before publishing them.
