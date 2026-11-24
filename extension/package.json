@@ -1,8 +1,8 @@
 {
   "name": "datagym-vscode",
   "displayName": "DataGym",
-  "description": "Practice pandas and NumPy with live DataFrame previews in VS Code (local Python engine).",
-  "version": "0.2.0",
+  "description": "Practice pandas, NumPy, and quantitative Python with interactive exercises and live data previews in VS Code.",
+  "version": "0.2.1",
   "publisher": "charliekarstan",
   "engines": {
     "vscode": "^1.90.0"

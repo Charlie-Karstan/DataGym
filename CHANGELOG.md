@@ -1,3 +1,7 @@
+## 0.2.1
+
+- Updated the extension description.
+
 ## 0.2.0 — Standalone VS Code extension
 
 - Bundled the Python engine, exercise packs, and training interface in the VSIX.
