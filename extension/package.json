@@ -2,14 +2,19 @@
   "name": "datagym-vscode",
   "displayName": "DataGym",
   "description": "Practice pandas, NumPy, and quantitative Python with interactive exercises and live data previews in VS Code.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "charliekarstan",
   "engines": {
     "vscode": "^1.90.0"
   },
   "main": "./extension.js",
+  "extensionDependencies": [
+    "ms-python.python",
+    "ms-python.vscode-pylance"
+  ],
   "activationEvents": [
-    "onCommand:datagym.open"
+    "onCommand:datagym.open",
+    "workspaceContains:DataGym.code-workspace"
   ],
   "contributes": {
     "commands": [

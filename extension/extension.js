@@ -12,13 +12,22 @@ const ROUTES = new Set([
   '/api/hint', '/api/reveal',
   '/api/reset', '/api/import',
 ]);
+const PYTHON_DOWNLOAD_URL = 'https://www.python.org/downloads/';
+
+class PythonRequiredError extends Error {}
 
 let panel;
 let server;
 let root;
 let storage;
+let workspaceFolder;
+let workspaceFile;
+let solutionFile;
+let trainerRequest;
 let output;
 let starting;
+let openingTrainer;
+let configuringIntelliSense;
 let backendPort;
 let saveTimer;
 
@@ -28,7 +37,7 @@ function managedPython() {
 }
 
 function systemPython() {
-  const configured = vscode.workspace.getConfiguration('datagym').get('pythonPath', '').trim();
+  const configured = vscode.workspace.getConfiguration('datagym', workspaceFolder).get('pythonPath', '').trim();
   const candidates = configured
     ? [[configured, []]]
     : process.platform === 'win32'
@@ -41,7 +50,8 @@ function systemPython() {
       { timeout: 6000, windowsHide: true });
     if (result.status === 0) return { command, prefix };
   }
-  throw new Error('Python 3.11+ is required. Install Python or set datagym.pythonPath in Settings.');
+  throw new PythonRequiredError('Install Python 3.11 or later, then run DataGym: Open Trainer again. ' +
+    'If Python is already installed, set datagym.pythonPath to its executable in VS Code Settings.');
 }
 
 function runProcess(command, args) {
@@ -57,16 +67,16 @@ function runProcess(command, args) {
 
 async function ensurePython() {
   const python = managedPython();
+  const marker = path.join(storage, 'dependencies.sha256');
   if (!fs.existsSync(python)) {
     output.appendLine('Creating private Python environment...');
-    fs.mkdirSync(storage, { recursive: true });
     const { command, prefix } = systemPython();
+    fs.rmSync(marker, { force: true });
     await runProcess(command, [...prefix, '-m', 'venv', path.join(storage, 'venv')]);
   }
 
   const requirements = fs.readFileSync(path.join(root, 'requirements.txt'));
   const fingerprint = crypto.createHash('sha256').update(requirements).digest('hex');
-  const marker = path.join(storage, 'dependencies.sha256');
   if (!fs.existsSync(marker) || fs.readFileSync(marker, 'utf8') !== fingerprint) {
     output.appendLine('Installing DataGym Python dependencies...');
     await runProcess(python, ['-m', 'pip', 'install', '--disable-pip-version-check',
@@ -106,7 +116,7 @@ function launchBackend(python) {
       env: {
         ...process.env,
         DATAGYM_PORT: '0',
-        DATAGYM_WORKSPACE: path.join(storage, 'workspace'),
+        DATAGYM_WORKSPACE: workspaceFolder.fsPath,
         PYTHONUNBUFFERED: '1',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -171,6 +181,68 @@ async function ensureBackend() {
   } finally {
     starting = undefined;
   }
+}
+
+function inTrainerWorkspace() {
+  const { workspaceFile: current, workspaceFolders: folders } = vscode.workspace;
+  return current?.toString() === workspaceFile.toString() && folders?.length === 1 &&
+    folders[0].uri.toString() === workspaceFolder.toString();
+}
+
+async function openTrainerWorkspace() {
+  fs.mkdirSync(workspaceFolder.fsPath, { recursive: true });
+  if (!fs.existsSync(workspaceFile.fsPath) && fs.existsSync(solutionFile.fsPath)) {
+    // The backend starts each session with a new exercise. Keep the pre-workspace draft.
+    try {
+      fs.copyFileSync(solutionFile.fsPath, path.join(workspaceFolder.fsPath, 'solution-before-upgrade.py'),
+        fs.constants.COPYFILE_EXCL);
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+    }
+  }
+  try {
+    fs.writeFileSync(workspaceFile.fsPath, JSON.stringify({ folders: [{ path: '.' }] }, null, 2) + '\n',
+      { flag: 'wx' });
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+  }
+
+  // An existing DataGym window can receive the request when VS Code focuses it.
+  fs.writeFileSync(trainerRequest, '');
+  const reuseWindow = !vscode.workspace.workspaceFile && !vscode.workspace.workspaceFolders?.length &&
+    !vscode.window.tabGroups.all.some(group => group.tabs.length);
+  await vscode.commands.executeCommand('vscode.openFolder', workspaceFile, {
+    forceReuseWindow: reuseWindow,
+    forceNewWindow: !reuseWindow,
+  });
+}
+
+async function configurePython() {
+  try {
+    const analysis = vscode.workspace.getConfiguration('python.analysis', workspaceFolder);
+    const extraPaths = analysis.inspect('extraPaths')?.workspaceValue;
+    if (extraPaths?.length !== 1 || extraPaths[0] !== root) {
+      await analysis.update('extraPaths', [root], vscode.ConfigurationTarget.Workspace);
+    }
+
+    const extension = vscode.extensions.getExtension('ms-python.python');
+    const api = await extension?.activate();
+    const environments = api?.environments;
+    if (!environments?.updateActiveEnvironmentPath) throw new Error('Python environment API is unavailable.');
+    const python = managedPython();
+    if (environments.getActiveEnvironmentPath(workspaceFolder)?.path !== python) {
+      await environments.updateActiveEnvironmentPath(python, workspaceFolder);
+    }
+  } catch (error) {
+    output.appendLine(`Python IntelliSense setup failed: ${error.message || error}`);
+    vscode.window.showWarningMessage('DataGym could not configure Python IntelliSense. ' +
+      'Enable or update the Microsoft Python and Pylance extensions, then run DataGym: Open Trainer again. ' +
+      `You can also use Python: Select Interpreter in the DataGym window and enter ${managedPython()}.`);
+  }
+}
+
+function configureIntelliSense() {
+  configuringIntelliSense ??= configurePython().finally(() => { configuringIntelliSense = undefined; });
 }
 
 function assetUri(webview, filename) {
@@ -240,8 +312,7 @@ function renderHtml(webview) {
 }
 
 async function positionAtResult() {
-  const uri = vscode.Uri.file(path.join(storage, 'workspace', 'solution.py'));
-  const key = uri.toString();
+  const key = solutionFile.toString();
   let editor = vscode.window.visibleTextEditors.find(
   candidate =>
     candidate.document.uri.toString() === key &&
@@ -249,7 +320,7 @@ async function positionAtResult() {
   );
 
   if (!editor) {
-    const document = await vscode.workspace.openTextDocument(uri);
+    const document = await vscode.workspace.openTextDocument(solutionFile);
     editor = await vscode.window.showTextDocument(document, {
       viewColumn: vscode.ViewColumn.Two,
       preserveFocus: true,
@@ -276,10 +347,8 @@ async function positionAtResult() {
 }
 
 async function saveSolutionBeforeNavigation() {
-  const filename = path.join(storage, 'workspace', 'solution.py');
-
   const document = vscode.workspace.textDocuments?.find(
-    doc => doc.uri.fsPath === filename
+    doc => doc.uri.fsPath === solutionFile.fsPath
   );
 
   if (document?.isDirty && !(await document.save())) {
@@ -311,6 +380,8 @@ async function handleWebviewRequest(message) {
 
 async function openTrainer() {
   await ensureBackend();
+  // Python extension activation must not delay the trainer or its backend.
+  configureIntelliSense();
   if (panel) {
     panel.reveal(undefined, true);
     return;
@@ -334,14 +405,40 @@ async function openTrainer() {
   await positionAtResult();
 }
 
+function requestTrainer() {
+  openingTrainer ??= (async () => {
+    try {
+      if (inTrainerWorkspace()) {
+        fs.rmSync(trainerRequest, { force: true });
+        await openTrainer();
+      } else {
+        await openTrainerWorkspace();
+      }
+    } catch (error) {
+      const message = `DataGym: ${error.message || error}`;
+      if (error instanceof PythonRequiredError) {
+        const action = 'Download Python';
+        if (await vscode.window.showErrorMessage(message, action) === action) {
+          await vscode.env.openExternal(vscode.Uri.parse(PYTHON_DOWNLOAD_URL));
+        }
+      } else {
+        vscode.window.showErrorMessage(message);
+      }
+    }
+  })().finally(() => { openingTrainer = undefined; });
+  return openingTrainer;
+}
+
 async function runCommand(route) {
+  if (!inTrainerWorkspace()) return;
   try {
-    await ensureBackend();
+    await openingTrainer;
     if (route === '/api/reveal' || route === '/api/hint') {
-      await openTrainer();
+      await requestTrainer();
       await panel?.webview.postMessage({ type: route === '/api/reveal' ? 'answer' : 'hint' });
       return;
     }
+    await ensureBackend();
     if (route === '/api/new' || route === '/api/previous') {
       await saveSolutionBeforeNavigation();
     }
@@ -356,24 +453,22 @@ async function runCommand(route) {
 function activate(context) {
   root = path.join(context.extensionPath, 'runtime');
   storage = context.globalStorageUri.fsPath;
+  workspaceFolder = vscode.Uri.file(path.join(storage, 'workspace'));
+  workspaceFile = vscode.Uri.joinPath(workspaceFolder, 'DataGym.code-workspace');
+  solutionFile = vscode.Uri.joinPath(workspaceFolder, 'solution.py');
+  trainerRequest = path.join(storage, 'open-trainer');
   fs.mkdirSync(storage, { recursive: true });
   output = vscode.window.createOutputChannel('DataGym');
   output.appendLine(`DataGym user data: ${storage}`);
   context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
-    if (event.document.uri.fsPath !== path.join(storage, 'workspace', 'solution.py')) return;
+    if (event.document.uri.fsPath !== solutionFile.fsPath) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       event.document.save().catch(error => output.appendLine(`Auto-save failed: ${error.message}`));
     }, 450);
   }));
   context.subscriptions.push(output);
-  context.subscriptions.push(vscode.commands.registerCommand('datagym.open', async () => {
-    try {
-      await openTrainer();
-    } catch (error) {
-      vscode.window.showErrorMessage(`DataGym: ${error.message || error}`);
-    }
-  }));
+  context.subscriptions.push(vscode.commands.registerCommand('datagym.open', requestTrainer));
 
   for (const [command, route] of [
     ['datagym.next', '/api/new'],
@@ -384,6 +479,17 @@ function activate(context) {
     context.subscriptions.push(
       vscode.commands.registerCommand(command, () => runCommand(route))
     );
+  }
+
+  if (inTrainerWorkspace()) {
+    context.subscriptions.push(vscode.window.onDidChangeWindowState(({ focused }) => {
+      if (focused && fs.existsSync(trainerRequest) && inTrainerWorkspace()) void requestTrainer();
+    }));
+    if (fs.existsSync(trainerRequest)) {
+      void requestTrainer();
+    } else if (fs.existsSync(managedPython())) {
+      configureIntelliSense();
+    }
   }
 }
 
