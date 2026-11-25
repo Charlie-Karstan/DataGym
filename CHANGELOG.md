@@ -1,3 +1,9 @@
+## 0.2.2
+
+- Fixed Python interpreter integration for IntelliSense.
+- Improved automatic import resolution and autocomplete in the solution editor.
+- Simplified Python environment configuration for new users.
+
 ## 0.2.1
 
 - Updated the extension description.
