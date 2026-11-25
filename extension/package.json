@@ -8,6 +8,12 @@
     "vscode": "^1.90.0"
   },
   "main": "./extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Trust the DataGym workspace to run exercises and use the managed Python environment."
+    }
+  },
   "extensionDependencies": [
     "ms-python.python",
     "ms-python.vscode-pylance"

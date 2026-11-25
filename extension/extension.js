@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
+const { setTimeout: delay } = require('timers/promises');
 
 const ROUTES = new Set([
   '/api/state', '/api/health',
@@ -13,6 +14,9 @@ const ROUTES = new Set([
   '/api/reset', '/api/import',
 ]);
 const PYTHON_DOWNLOAD_URL = 'https://www.python.org/downloads/';
+const PYTHON_EXTENSION = 'ms-python.python';
+const PYTHON_ENVS_EXTENSION = 'ms-python.vscode-python-envs';
+const UPGRADE_DRAFT = 'solution-before-upgrade.py';
 
 class PythonRequiredError extends Error {}
 
@@ -151,7 +155,7 @@ function launchBackend(python) {
     });
     child.on('exit', code => {
       clearTimeout(timer);
-      output.appendLine(`DataGym backend exited: ${code}`);
+      if (server === child) output.appendLine(`DataGym backend exited: ${code}`);
       if (server === child) {
         server = undefined;
         backendPort = undefined;
@@ -189,60 +193,145 @@ function inTrainerWorkspace() {
     folders[0].uri.toString() === workspaceFolder.toString();
 }
 
+function tabs() {
+  return vscode.window.tabGroups.all.flatMap(group => group.tabs);
+}
+
+function isStartupTab(tab) {
+  // VS Code exposes built-in Welcome and Getting Started pages without a tab input.
+  return !tab.input && !tab.isDirty;
+}
+
 async function openTrainerWorkspace() {
   fs.mkdirSync(workspaceFolder.fsPath, { recursive: true });
   if (!fs.existsSync(workspaceFile.fsPath) && fs.existsSync(solutionFile.fsPath)) {
     // The backend starts each session with a new exercise. Keep the pre-workspace draft.
     try {
-      fs.copyFileSync(solutionFile.fsPath, path.join(workspaceFolder.fsPath, 'solution-before-upgrade.py'),
+      fs.copyFileSync(solutionFile.fsPath, path.join(storage, UPGRADE_DRAFT),
         fs.constants.COPYFILE_EXCL);
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
     }
   }
   try {
-    fs.writeFileSync(workspaceFile.fsPath, JSON.stringify({ folders: [{ path: '.' }] }, null, 2) + '\n',
-      { flag: 'wx' });
+    const settings = { 'python.analysis.extraPaths': [root] };
+    fs.writeFileSync(workspaceFile.fsPath,
+      JSON.stringify({ folders: [{ path: '.' }], settings }, null, 2) + '\n', { flag: 'wx' });
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
   }
 
-  // An existing DataGym window can receive the request when VS Code focuses it.
+  // Keep the request across extension hosts and Workspace Trust transitions.
   fs.writeFileSync(trainerRequest, '');
+  output.appendLine(`Opening the DataGym workspace at ${workspaceFile.fsPath}`);
   const reuseWindow = !vscode.workspace.workspaceFile && !vscode.workspace.workspaceFolders?.length &&
-    !vscode.window.tabGroups.all.some(group => group.tabs.length);
+    tabs().every(isStartupTab);
   await vscode.commands.executeCommand('vscode.openFolder', workspaceFile, {
     forceReuseWindow: reuseWindow,
     forceNewWindow: !reuseWindow,
   });
 }
 
-async function configurePython() {
-  try {
-    const analysis = vscode.workspace.getConfiguration('python.analysis', workspaceFolder);
-    const extraPaths = analysis.inspect('extraPaths')?.workspaceValue;
-    if (extraPaths?.length !== 1 || extraPaths[0] !== root) {
-      await analysis.update('extraPaths', [root], vscode.ConfigurationTarget.Workspace);
-    }
+async function tidyTrainerTabs() {
+  const legacy = vscode.Uri.joinPath(workspaceFolder, UPGRADE_DRAFT);
+  const restoredDraftTabs = tabs().filter(tab => tab.input instanceof vscode.TabInputText &&
+    tab.input.uri.toString() === legacy.toString());
+  if (restoredDraftTabs.some(tab => tab.isDirty)) {
+    const draft = await vscode.workspace.openTextDocument(legacy);
+    if (!await draft.save()) return;
+  }
+  if (restoredDraftTabs.length && !await vscode.window.tabGroups.close(restoredDraftTabs, true)) return;
+  if (fs.existsSync(legacy.fsPath)) {
+    const archive = path.join(storage, UPGRADE_DRAFT);
+    const destination = fs.existsSync(archive)
+      ? path.join(storage, `solution-before-upgrade-${crypto.randomUUID()}.py`)
+      : archive;
+    fs.renameSync(legacy.fsPath, destination);
+  }
+}
 
-    const extension = vscode.extensions.getExtension('ms-python.python');
-    const api = await extension?.activate();
-    const environments = api?.environments;
-    if (!environments?.updateActiveEnvironmentPath) throw new Error('Python environment API is unavailable.');
-    const python = managedPython();
-    if (environments.getActiveEnvironmentPath(workspaceFolder)?.path !== python) {
-      await environments.updateActiveEnvironmentPath(python, workspaceFolder);
+function isManagedInterpreter(executable) {
+  // A virtual environment can have several Python entry points, often symlinked to base Python.
+  return Boolean(executable) && path.relative(path.dirname(managedPython()), path.dirname(executable)) === '';
+}
+
+async function configurePython(signal) {
+  const python = managedPython();
+  const config = vscode.workspace.getConfiguration('python', solutionFile);
+  const extraPaths = config.inspect('analysis.extraPaths')?.workspaceValue;
+  if (extraPaths?.length !== 1 || extraPaths[0] !== root) {
+    await config.update('analysis.extraPaths', [root], vscode.ConfigurationTarget.Workspace);
+  }
+  signal.throwIfAborted();
+  const extension = vscode.extensions.getExtension(PYTHON_EXTENSION);
+  const api = await extension?.activate();
+  await api?.ready;
+  signal.throwIfAborted();
+  const environments = api?.environments;
+  if (!environments?.updateActiveEnvironmentPath) throw new Error('Python environment API is unavailable.');
+
+  const useEnvs = config.inspect('useEnvironmentsExtension');
+  const enabled = useEnvs?.workspaceFolderValue ?? useEnvs?.workspaceValue ?? useEnvs?.globalValue;
+  const manager = enabled === false ? undefined : vscode.extensions.getExtension(PYTHON_ENVS_EXTENSION);
+  const modern = await manager?.activate();
+  signal.throwIfAborted();
+  const hasModernAPI = modern?.getEnvironment && modern.resolveEnvironment && modern.setEnvironment;
+  const readLegacy = () => environments.getActiveEnvironmentPath(solutionFile)?.path;
+  const readModern = async () => (await modern.getEnvironment(solutionFile))?.execInfo?.run?.executable;
+  if (hasModernAPI) {
+    if (!isManagedInterpreter(await readModern())) {
+      const resolved = await modern.resolveEnvironment(vscode.Uri.file(python));
+      signal.throwIfAborted();
+      if (!isManagedInterpreter(resolved?.execInfo?.run?.executable)) {
+        throw new Error(`Python Environments could not resolve ${python}.`);
+      }
+      await modern.setEnvironment(workspaceFolder, resolved);
     }
+  } else if (enabled === true) {
+    throw new Error('The Python Environments extension API is unavailable.');
+  }
+
+  signal.throwIfAborted();
+  if (!isManagedInterpreter(readLegacy())) {
+    await environments.updateActiveEnvironmentPath(python, workspaceFolder);
+  }
+  while (!signal.aborted) {
+    const selected = readLegacy();
+    const managed = hasModernAPI ? await readModern() : selected;
+    signal.throwIfAborted();
+    if (isManagedInterpreter(selected) && isManagedInterpreter(managed)) {
+      output.appendLine(`Selected Python for solution.py: ${managed}`);
+      return;
+    }
+    await delay(150, undefined, { signal });
+  }
+}
+
+async function prepareIntelliSense() {
+  const controller = new AbortController();
+  let timer;
+  try {
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error('Timed out confirming the managed interpreter for solution.py.');
+        controller.abort(error);
+        reject(error);
+      }, 15000);
+    });
+    await Promise.race([configurePython(controller.signal), deadline]);
   } catch (error) {
     output.appendLine(`Python IntelliSense setup failed: ${error.message || error}`);
     vscode.window.showWarningMessage('DataGym could not configure Python IntelliSense. ' +
       'Enable or update the Microsoft Python and Pylance extensions, then run DataGym: Open Trainer again. ' +
       `You can also use Python: Select Interpreter in the DataGym window and enter ${managedPython()}.`);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 function configureIntelliSense() {
-  configuringIntelliSense ??= configurePython().finally(() => { configuringIntelliSense = undefined; });
+  configuringIntelliSense ??= prepareIntelliSense().finally(() => { configuringIntelliSense = undefined; });
+  return configuringIntelliSense;
 }
 
 function assetUri(webview, filename) {
@@ -319,8 +408,12 @@ async function positionAtResult() {
     candidate.viewColumn === vscode.ViewColumn.Two
   );
 
+  let document = editor?.document ?? await vscode.workspace.openTextDocument(solutionFile);
+  if (document.languageId !== 'python') {
+    document = await vscode.languages.setTextDocumentLanguage(document, 'python');
+    editor = undefined;
+  }
   if (!editor) {
-    const document = await vscode.workspace.openTextDocument(solutionFile);
     editor = await vscode.window.showTextDocument(document, {
       viewColumn: vscode.ViewColumn.Two,
       preserveFocus: true,
@@ -328,7 +421,6 @@ async function positionAtResult() {
     });
   }
 
-  const document = editor.document;
   let lineNumber = document.lineCount - 1;
   for (let i = lineNumber; i >= 0; i--) {
     if (document.lineAt(i).text.trimStart().startsWith('result =')) {
@@ -380,37 +472,44 @@ async function handleWebviewRequest(message) {
 
 async function openTrainer() {
   await ensureBackend();
-  // Python extension activation must not delay the trainer or its backend.
-  configureIntelliSense();
+  try {
+    await tidyTrainerTabs();
+  } catch (error) {
+    output.appendLine(`Could not archive the old solution draft: ${error.message || error}`);
+  }
   if (panel) {
     panel.reveal(undefined, true);
-    return;
+  } else {
+    await vscode.commands.executeCommand('vscode.setEditorLayout', {
+      orientation: 1,
+      groups: [{ size: 0.8 }, { size: 0.2 }],
+    });
+    panel = vscode.window.createWebviewPanel('datagym', 'DataGym', vscode.ViewColumn.One, {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [vscode.Uri.file(path.join(root, 'static'))],
+    });
+    panel.webview.html = renderHtml(panel.webview);
+    panel.webview.onDidReceiveMessage(handleWebviewRequest);
+    panel.onDidDispose(() => { panel = undefined; });
   }
-  await vscode.commands.executeCommand('vscode.setEditorLayout', {
-  orientation: 1,
-  groups: [
-    { size: 0.8 },
-    { size: 0.2 },
-  ],
-  });
-
-  panel = vscode.window.createWebviewPanel('datagym', 'DataGym', vscode.ViewColumn.One, {
-    enableScripts: true,
-    retainContextWhenHidden: true,
-    localResourceRoots: [vscode.Uri.file(path.join(root, 'static'))],
-  });
-  panel.webview.html = renderHtml(panel.webview);
-  panel.webview.onDidReceiveMessage(handleWebviewRequest);
-  panel.onDidDispose(() => { panel = undefined; });
+  await configureIntelliSense();
   await positionAtResult();
+  const extraTabs = tabs().filter(tab => isStartupTab(tab) || (
+    tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === solutionFile.toString() &&
+    tab.group.viewColumn !== vscode.ViewColumn.Two
+  ));
+  if (extraTabs.length) await vscode.window.tabGroups.close(extraTabs, true);
 }
 
 function requestTrainer() {
   openingTrainer ??= (async () => {
     try {
       if (inTrainerWorkspace()) {
-        fs.rmSync(trainerRequest, { force: true });
+        if (!vscode.workspace.isTrusted) return;
         await openTrainer();
+        fs.rmSync(trainerRequest, { force: true });
+        output.appendLine('DataGym trainer and solution.py opened.');
       } else {
         await openTrainerWorkspace();
       }
@@ -430,7 +529,7 @@ function requestTrainer() {
 }
 
 async function runCommand(route) {
-  if (!inTrainerWorkspace()) return;
+  if (!inTrainerWorkspace() || !vscode.workspace.isTrusted) return;
   try {
     await openingTrainer;
     if (route === '/api/reveal' || route === '/api/hint') {
@@ -482,20 +581,40 @@ function activate(context) {
   }
 
   if (inTrainerWorkspace()) {
-    context.subscriptions.push(vscode.window.onDidChangeWindowState(({ focused }) => {
-      if (focused && fs.existsSync(trainerRequest) && inTrainerWorkspace()) void requestTrainer();
-    }));
-    if (fs.existsSync(trainerRequest)) {
-      void requestTrainer();
-    } else if (fs.existsSync(managedPython())) {
-      configureIntelliSense();
+    const launchPending = () => {
+      if (inTrainerWorkspace() && vscode.workspace.isTrusted && fs.existsSync(trainerRequest)) {
+        void requestTrainer();
+      }
+    };
+    const reportWatchError = error => output.appendLine(`Could not watch trainer launch requests: ${error.message}`);
+    try {
+      const watcher = fs.watch(storage, { persistent: false }, (_event, filename) => {
+        if (!filename || filename === path.basename(trainerRequest)) launchPending();
+      });
+      watcher.on('error', reportWatchError);
+      context.subscriptions.push({ dispose: () => watcher.close() });
+    } catch (error) {
+      reportWatchError(error);
     }
+    context.subscriptions.push(vscode.window.onDidChangeWindowState(({ focused }) => {
+      if (focused) launchPending();
+    }));
+    const onTrusted = () => {
+      if (!inTrainerWorkspace()) return;
+      output.appendLine(`Managed workspace active (trusted: ${vscode.workspace.isTrusted}).`);
+      if (fs.existsSync(trainerRequest)) launchPending();
+      else if (vscode.workspace.isTrusted && fs.existsSync(managedPython())) void configureIntelliSense();
+    };
+    context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(onTrusted));
+    onTrusted();
   }
 }
 
 function deactivate() {
   clearTimeout(saveTimer);
-  if (server && !server.killed) server.kill();
+  const child = server;
+  server = undefined;
+  if (child && !child.killed) child.kill();
 }
 
 module.exports = { activate, deactivate };
