@@ -14,6 +14,10 @@ const manifest = require('../extension/package.json');
 const requirements = 'pandas>=2.2,<4\nnumpy>=2.0,<3\n';
 const fingerprint = crypto.createHash('sha256').update(requirements).digest('hex');
 
+class TabInputText {
+  constructor(fsPath) { this.uri = { toString: () => fsPath }; }
+}
+
 function fixture(t) {
   const storage = fs.mkdtempSync(path.join(os.tmpdir(), 'datagym-test-'));
   t.after(() => fs.rmSync(storage, { recursive: true, force: true }));
@@ -35,13 +39,17 @@ function loadExtension(files, {
   editor,
   version = 'current',
   activePython,
+  modernPython,
+  usePythonEnvs = false,
+  pythonReady,
+  trusted = true,
   extraPaths,
   pythonAvailable = true,
   selectEnvironment,
   useDownloadAction = false,
 } = {}) {
   const commands = new Map();
-  const calls = { opens: [], layouts: [], processes: [], configuration: [], interpreters: [],
+  const calls = { opens: [], layouts: [], processes: [], configuration: [], interpreters: [], modern: [], closedTabs: [],
     errors: [], warnings: [], urls: [], panels: 0, documentOpens: 0 };
   const uri = fsPath => ({ fsPath, toString: () => fsPath });
   const extensionPath = path.join(files.storage, version);
@@ -51,10 +59,13 @@ function loadExtension(files, {
   fs.writeFileSync(path.join(runtime, 'static', 'index.html'), '<html><head></head><body></body></html>');
   const document = editor?.document ?? {
     uri: uri(files.solution),
+    languageId: 'python',
     lineCount: 1,
     lineAt: () => ({ text: 'result = ' }),
   };
   let windowStateChanged;
+  let grantTrust;
+  let fileChanged;
   let disposePanel;
   const mockPanel = {
     reveal() {},
@@ -66,14 +77,23 @@ function loadExtension(files, {
     workspace: {
       workspaceFile: workspaceFile && uri(workspaceFile),
       workspaceFolders: folders.map(folder => ({ uri: uri(folder) })),
+      get isTrusted() { return trusted; },
+      onDidGrantWorkspaceTrust(handler) {
+        grantTrust = handler;
+        return { dispose() {} };
+      },
       onDidChangeTextDocument: () => ({ dispose() {} }),
       getConfiguration(section, resource) {
         if (section === 'datagym') return { get: () => '' };
         return {
-          inspect: () => ({ workspaceValue: extraPaths }),
+          inspect(key) {
+            if (key === 'analysis.extraPaths') return { workspaceValue: extraPaths };
+            if (key === 'useEnvironmentsExtension') return { globalValue: usePythonEnvs };
+          },
           async update(key, value, target) {
-            calls.configuration.push({ section, resource: resource.fsPath, key, value: [...value], target });
-            extraPaths = value;
+            calls.configuration.push({ section, resource: resource.fsPath, key,
+              value: Array.isArray(value) ? [...value] : value, target });
+            if (key === 'analysis.extraPaths') extraPaths = value;
           },
         };
       },
@@ -84,7 +104,14 @@ function loadExtension(files, {
     },
     window: {
       visibleTextEditors: editor ? [editor] : [],
-      tabGroups: { all: [{ tabs }] },
+      tabGroups: {
+        all: [{ tabs }],
+        async close(closed) {
+          calls.closedTabs.push(...closed);
+          for (const tab of closed) tabs.splice(tabs.indexOf(tab), 1);
+          return true;
+        },
+      },
       onDidChangeWindowState(handler) {
         windowStateChanged = handler;
         return { dispose() {} };
@@ -119,11 +146,31 @@ function loadExtension(files, {
     },
     extensions: {
       getExtension(id) {
+        if (id === 'ms-python.vscode-python-envs' && usePythonEnvs) {
+          const environment = executable => ({ execInfo: { run: { executable } } });
+          return { activate: async () => ({
+            async getEnvironment(resource) {
+              assert.equal(resource.fsPath, files.solution);
+              return environment(modernPython);
+            },
+            async resolveEnvironment(resource) {
+              return environment(resource.fsPath);
+            },
+            async setEnvironment(resource, selected) {
+              calls.modern.push([selected.execInfo.run.executable, resource.fsPath]);
+              modernPython = selected.execInfo.run.executable;
+            },
+          }) };
+        }
         assert.equal(id, 'ms-python.python');
         return {
           activate: async () => ({
+            ready: pythonReady,
             environments: {
-              getActiveEnvironmentPath: () => ({ path: activePython }),
+              getActiveEnvironmentPath(resource) {
+                assert.equal(resource.fsPath, files.solution);
+                return { path: activePython };
+              },
               async updateActiveEnvironmentPath(python, resource) {
                 calls.interpreters.push([python, resource.fsPath]);
                 await selectEnvironment?.();
@@ -134,9 +181,15 @@ function loadExtension(files, {
         };
       },
     },
+    languages: {
+      async setTextDocumentLanguage(doc, languageId) {
+        return Object.assign(doc, { languageId });
+      },
+    },
     env: { openExternal: async url => calls.urls.push(url.toString()) },
     Uri: { file: uri, joinPath: (base, name) => uri(path.join(base.fsPath, name)), parse: uri },
     ConfigurationTarget: { Workspace: 2 },
+    TabInputText,
     ProgressLocation: { Notification: 15 },
     ViewColumn: { One: 1, Two: 2 },
     Position: class { constructor(line, character) { Object.assign(this, { line, character }); } },
@@ -168,6 +221,10 @@ function loadExtension(files, {
     require: name => {
       if (name === 'vscode') return vscode;
       if (name === 'child_process') return childProcess;
+      if (name === 'fs') return { ...fs, watch: (_path, _options, handler) => {
+        fileChanged = handler;
+        return { on() {}, close() {} };
+      } };
       return require(name);
     },
     module: { exports: {} },
@@ -175,6 +232,7 @@ function loadExtension(files, {
     setTimeout,
     clearTimeout,
     AbortSignal,
+    AbortController,
     fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }),
   };
   vm.runInNewContext(source, context, { filename: 'extension.js' });
@@ -187,6 +245,8 @@ function loadExtension(files, {
     calls, commands, runtime,
     open: commands.get('datagym.open'),
     focus: () => windowStateChanged({ focused: true }),
+    fileChanged: () => fileChanged('rename', 'open-trainer'),
+    trust: () => { trusted = true; grantTrust(); },
     closePanel: () => disposePanel(),
   };
 }
@@ -198,11 +258,14 @@ test('declares Python and Pylance dependencies and activates inside the trainer 
 
 test('fresh launch hands off to a managed workspace in the empty window', async t => {
   const files = fixture(t);
-  const from = loadExtension(files);
+  const from = loadExtension(files, { tabs: [{ label: 'Welcome' }] });
   await Promise.all([from.open(), from.open()]);
 
   assert.deepEqual(from.calls.opens, [[files.workspace, { forceReuseWindow: true, forceNewWindow: false }]]);
-  assert.deepEqual(JSON.parse(fs.readFileSync(files.workspace, 'utf8')).folders, [{ path: '.' }]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(files.workspace, 'utf8')), {
+    folders: [{ path: '.' }],
+    settings: { 'python.analysis.extraPaths': [from.runtime] },
+  });
   assert.deepEqual(from.calls.processes, []);
   assert.deepEqual(from.calls.configuration, []);
   assert.deepEqual(from.calls.interpreters, []);
@@ -216,10 +279,9 @@ test('fresh launch hands off to a managed workspace in the empty window', async 
   assert.equal(backend.command, files.python);
   assert.equal(backend.options.env.DATAGYM_WORKSPACE, files.folder);
   assert.deepEqual(trainer.calls.interpreters, [[files.python, files.folder]]);
-  assert.deepEqual(trainer.calls.configuration, [{
-    section: 'python.analysis', resource: files.folder, key: 'extraPaths',
-    value: [trainer.runtime], target: 2,
-  }]);
+  assert.deepEqual(trainer.calls.configuration, [
+    { section: 'python', resource: files.solution, key: 'analysis.extraPaths', value: [trainer.runtime], target: 2 },
+  ]);
   assert.equal(trainer.calls.panels, 1);
   const [layout] = trainer.calls.layouts;
   assert.equal(layout.orientation, 1);
@@ -233,7 +295,8 @@ test('opens a separate window from unrelated folders, workspaces and file-only w
     { folders: [path.join(files.storage, 'other-project')] },
     { workspaceFile: path.join(files.storage, 'other-project', 'DataGym.code-workspace'), folders: [files.folder] },
     { workspaceFile: files.workspace, folders: [files.folder, path.join(files.storage, 'other-project')] },
-    { tabs: [{}] },
+    { tabs: [{ input: new TabInputText(path.join(files.storage, 'unrelated.py')) }] },
+    { tabs: [{ isDirty: true }] },
   ]) {
     const from = loadExtension(files, window);
     await from.commands.get('datagym.next')();
@@ -245,7 +308,7 @@ test('opens a separate window from unrelated folders, workspaces and file-only w
   }
 });
 
-test('a focused DataGym window consumes an open request and restores a closed trainer', async t => {
+test('an open DataGym window handles a launch request without a focus change', async t => {
   const files = fixture(t);
   const trainer = loadExtension(files, { managed: true });
   await trainer.open();
@@ -255,11 +318,39 @@ test('a focused DataGym window consumes an open request and restores a closed tr
 
   const from = loadExtension(files);
   await from.open();
-  trainer.focus();
-  await trainer.open();
+  trainer.fileChanged();
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(trainer.calls.panels, 2);
   assert.equal(trainer.calls.processes.filter(({ args }) => args[0] === 'app.py').length, 1);
   assert.equal(fs.existsSync(path.join(files.storage, 'open-trainer')), false);
+});
+
+test('a pending handoff survives Restricted Mode and waits for Python initialization', async t => {
+  const files = fixture(t);
+  let finishPython;
+  const pythonReady = new Promise(resolve => { finishPython = resolve; });
+  const from = loadExtension(files);
+  await from.open();
+  const trainer = loadExtension(files, {
+    managed: true, trusted: false, usePythonEnvs: true,
+    activePython: files.python, modernPython: path.join(files.storage, 'system', 'python'), pythonReady,
+  });
+  const request = path.join(files.storage, 'open-trainer');
+  await trainer.open();
+  assert.equal(fs.existsSync(request), true);
+  assert.equal(trainer.calls.panels, 0);
+  trainer.trust();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(trainer.calls.panels, 1);
+  assert.equal(trainer.calls.documentOpens, 0);
+  assert.deepEqual(trainer.calls.modern, []);
+  assert.equal(fs.existsSync(request), true);
+  finishPython();
+  await trainer.open();
+  assert.deepEqual(trainer.calls.modern, [[files.python, files.folder]]);
+  assert.deepEqual(trainer.calls.interpreters, []);
+  assert.equal(trainer.calls.documentOpens, 1);
+  assert.equal(fs.existsSync(request), false);
 });
 
 test('an upgrade refreshes the runtime path and reuses the existing interpreter and user data', async t => {
@@ -299,8 +390,25 @@ test('first launch from a legacy installation keeps the pre-workspace solution d
   fs.writeFileSync(files.solution, 'result = 43\n');
   await from.open();
 
-  assert.equal(fs.readFileSync(path.join(files.folder, 'solution-before-upgrade.py'), 'utf8'), 'result = 42\n');
+  assert.equal(fs.readFileSync(path.join(files.storage, 'solution-before-upgrade.py'), 'utf8'), 'result = 42\n');
   assert.equal(fs.readFileSync(files.solution, 'utf8'), 'result = 43\n');
+});
+
+test('archives old drafts and closes restored copies of DataGym tabs', async t => {
+  const files = fixture(t);
+  fs.mkdirSync(files.folder);
+  const draft = path.join(files.folder, 'solution-before-upgrade.py');
+  fs.writeFileSync(draft, 'result = 42\n');
+  const backup = { input: new TabInputText(draft) };
+  const duplicate = { input: new TabInputText(files.solution), group: { viewColumn: 1 } };
+  const solution = { input: new TabInputText(files.solution), group: { viewColumn: 2 } };
+  const welcome = { label: 'Welcome' };
+  const trainer = loadExtension(files, { managed: true, tabs: [backup, duplicate, solution, welcome] });
+  await trainer.open();
+
+  assert.deepEqual(trainer.calls.closedTabs, [backup, duplicate, welcome]);
+  assert.equal(fs.existsSync(draft), false);
+  assert.equal(fs.readFileSync(path.join(files.storage, 'solution-before-upgrade.py'), 'utf8'), 'result = 42\n');
 });
 
 test('recreating a missing managed environment reinstalls dependencies even with a matching marker', async t => {
@@ -351,6 +459,7 @@ test('next exercise reuses the visible solution editor', async t => {
   const lines = ['import pandas as pd', '# Example', 'result = '];
   const document = {
     uri: { toString: () => files.solution },
+    languageId: 'python',
     lineCount: lines.length,
     lineAt: index => ({ text: lines[index] }),
   };

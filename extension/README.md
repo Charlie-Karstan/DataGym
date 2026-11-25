@@ -25,6 +25,8 @@ DataGym turns data manipulation into interactive coding exercises. Write Python 
 3. Select **DataGym: Open Trainer**.
 4. Write your solution in the generated `solution.py` editor.
 
+If VS Code opens the DataGym workspace in Restricted Mode, use the Workspace Trust banner to trust that workspace. The trainer resumes automatically.
+
 On first launch, DataGym automatically prepares a private Python environment and installs pandas and NumPy. Internet access is required for this initial setup.
 
 There is **no need to clone the source code, open a particular project folder, or configure a DataGym virtual environment manually**.

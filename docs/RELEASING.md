@@ -35,6 +35,14 @@ The `vscode:prepublish` script stages the Python engine, exercise packs, and fro
 
 Verify the generated VSIX contains `runtime/app.py`, `runtime/datagym/`, `runtime/exercise_packs/`, and `runtime/static/`.
 
+Run the desktop acceptance test from the repository root with VS Code and Python 3.11+ installed.
+
+```bash
+node tests/vscode/run.js extension/datagym-vscode-0.2.2.vsix
+```
+
+The runner installs the VSIX and Microsoft extensions in a disposable profile, opens the trainer, and checks Pylance completions and import definitions in `solution.py`. Set `DATAGYM_TEST_PYTHON_ENVS=0` to exercise legacy interpreter selection, `DATAGYM_TEST_REQUIRE_TRUST=1` to grant Workspace Trust interactively, or `DATAGYM_TEST_RESTRICTED_REOPEN=1` to test reopening a pending launch from Restricted Mode. For an offline run, set `DATAGYM_TEST_EXTENSION_CACHE` to a directory of installed Microsoft extensions, `PIP_NO_INDEX=1`, and `PIP_FIND_LINKS` to a directory of compatible Python wheels.
+
 Do not commit the generated runtime, virtual environments, local databases, or VSIX builds.
 
 ## Publish
